@@ -20,14 +20,12 @@ CCOPTS=-ansi -g -Wall -Wno-write-strings -Wshadow -Wextra -pedantic -O2
 
 ## Help
 
-all: banner color run
+all: banner color 
 
 banner:
 	@/bin/echo -e "color, GNU Makefile\n"
 	@/bin/echo -e "Author:    $(BLUE)Richard James Howe$(DEFAULT)."
 	@/bin/echo -e "Email:     $(BLUE)howe.r.j.89@gmail.com$(DEFAULT)."
-	@/bin/echo -e "  This program is derived from a program availble from the"
-	@/bin/echo -e "  the IOCCC, see entry buzzard.2 from 1992."
 	@/bin/echo -e "\n"
 
 
@@ -54,9 +52,9 @@ help:
 	@/bin/echo "make valgrind"
 	@/bin/echo "     Run program with valgrind on start up color file only."
 
-run: color
-	@/bin/echo "cat color.fs - | ./color"
-	@cat color.fs - | ./color
+##run: color
+##	@/bin/echo "cat color.fs - | ./color"
+##	@cat color.fs - | ./color
 
 ## Main color program
 
