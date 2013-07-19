@@ -96,12 +96,12 @@ html:
 valgrind: color
 	@/bin/echo "Running valgrind on ./color"
 	@/bin/echo "  This command needs changing in the makefile"
-	-cat color.fs | valgrind ./color &> valgrind.log << EOF
+	-valgrind ./color &> valgrind.log
 
 gcov: CCOPTS:=$(CCOPTS) --coverage
 gcov: clean color
 	@/bin/echo "Providing gcov statistics for color program."
-	@cat color.fs | ./color << EOF
+	@cat ./color
 	@gcov color.c main.c
 
 
