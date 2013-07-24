@@ -55,8 +55,8 @@ help:
 	@/bin/echo "     Run program with valgrind on start up forth file only."
 
 run: forth
-	@/bin/echo "cat forth.fs - | ./forth"
-	@cat forth.fs - | ./forth
+	@/bin/echo "cat forth.4th - | ./forth"
+	@cat forth.4th - | ./forth
 
 ## Main forth program
 
@@ -78,7 +78,7 @@ pretty:
 	@/bin/echo -e "$(RED)"
 	@rm -vf forth memory.txt *.log *.swo *.swp *.o *~ *.gcov *.gcda *.gcno *.html *.htm;
 	@/bin/echo -e "$(DEFAULT)"
-	@wc *.c *.h *.fs makefile
+	@wc *.c *.h *.4th makefile
 
 # Clean up directory.
 clean:
@@ -98,12 +98,12 @@ html:
 valgrind: forth
 	@/bin/echo "Running valgrind on ./forth"
 	@/bin/echo "  This command needs changing in the makefile"
-	-cat forth.fs | valgrind ./forth &> valgrind.log << EOF
+	-cat forth.4th | valgrind ./forth &> valgrind.log << EOF
 
 gcov: CCOPTS:=$(CCOPTS) --coverage
 gcov: clean forth
 	@/bin/echo "Providing gcov statistics for forth program."
-	@cat forth.fs | ./forth << EOF
+	@cat forth.4th | ./forth << EOF
 	@gcov forth.c main.c
 
 
