@@ -31,6 +31,6 @@ uint handle_error(error_t *e, uint line, char* file, errornumber_t en)
   }
 
   if(!e->silent)
-    fprintf(e->stderr_output, "(error (file \"%s\") (line %d) (msg \"%s\") (# %d) (level %d))",file,line,error_string[en],en,e->level);
+    fprintf(e->stderr_output, "(error (file \"%s\") (line %d) (msg \"%s\") (# %d) (level %d))\n",file,line,error_string[en],en,e->level);
   return 0;
 }
