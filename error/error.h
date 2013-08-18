@@ -5,10 +5,12 @@
 
 typedef enum{
     false,
-    true,
+    true
 } bool;
 
 typedef unsigned int uint;
+
+extern char *error_string[];
 
 /* X MACRO ==================================================================*/
 
@@ -35,15 +37,6 @@ typedef unsigned int uint;
 typedef enum{
   ERROR_TABLE 
 } errornumber_t;
-#undef X
-
-#define X(a, b, c) b,
-#undef X
-
-#define X(a, b, c) c,
-char *error_string[] = {
- ERROR_TABLE 
-};
 #undef X
 
 /* X MACRO ==================================================================*/
