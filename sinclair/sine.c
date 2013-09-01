@@ -36,22 +36,19 @@ int isatty(int f)
 }
 #endif
 
-cs *mysine(float angle)
+cs mysine(float angle)
 {
-#define DIVISOR_M (1000.0f)
-        cs *res;
+#define DIVISOR_M (1024.0f) /*set to 16.0f to see some cross over*/
+        cs res;
         float c = 1.0f, s = 0.0f;
         float current_angle = (1.0f / (2 * DIVISOR_M)); 
-        res = malloc(sizeof(cs));
-        if (res == NULL)
-                exit(1);
         while (current_angle < angle) {
                 c = c - (s / DIVISOR_M);
                 s = s + (c / DIVISOR_M);
                 current_angle += (1.0f / DIVISOR_M);
         }
-        res->c = c;
-        res->s = s;
+        res.c = c;
+        res.s = s;
         return res;
 #undef DIVISOR_M
 }
@@ -115,13 +112,12 @@ void print_bar(float c, float s, int width, bool color, FILE * out)
 int main(void)
 {
         float i;
-        cs *res;
+        cs res;
 
         for (i = 0.0f; i < 2u * MYPI; i += STEP) {
                 res = mysine(i);
-                print_bar(res->c, res->s, GRAPH_LEN_M, isatty(fileno(stdout)),
+                print_bar(res.c, res.s, GRAPH_LEN_M, isatty(fileno(stdout)),
                           stdout);
-                free(res);
         }
 
         fprintf(stdout,"\n");
