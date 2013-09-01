@@ -1,0 +1,7 @@
+sine
+log
+*.swo
+*.swp
+*.o
+*.txt
+*.log
