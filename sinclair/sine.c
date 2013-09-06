@@ -24,7 +24,7 @@ typedef struct {
 #define C_BLUE_M    "\x1b[34;1m"
 #define C_DEFAULT_M "\x1b[0m"
 
-#define GRAPH_LEN_M (60u)
+#define GRAPH_LEN_M (66u)
 
 #ifdef __GNUC__
 #include <unistd.h>
@@ -99,7 +99,7 @@ void print_bar(float c, float s, int width, bool color, FILE * out)
         putc('=', out);
 
         PRNT_COLOR_M(C_GREEN_M);
-        fprintf(out, "<%.3f>,", s);
+        fprintf(out, "<%.3f>", s);
         PRNT_COLOR_M(C_RED_M);
         fprintf(out, "<%.3f>", c);
         DEFAULT_COLOR_M();
