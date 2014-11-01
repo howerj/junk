@@ -2,7 +2,7 @@ BINDIR = /usr/local/bin
 MANDIR = /usr/local/man
 
 CC = gcc
-CFLAGS = -Wall -W -O2
+CFLAGS = -Wall -ansi -W -O2
 LDFLAGS = -s
 
 #### rules ####
