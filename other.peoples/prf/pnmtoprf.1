@@ -1,0 +1,31 @@
+.TH pnmtoprf 1 "January 2001" "Version 1.0" "Graphics Utilities"
+.SH NAME
+pnmtoprf \- convert a portable anymap into a prf file
+.SH SYNOPSIS
+.B pnmtoprf
+[input.pnm [output.prf]]
+.SH DESCRIPTION
+Reads a portable anymap as input. Produces a prf file as output.
+.P
+If the input file is a
+.IR pbm (5)
+and the output filename ends with the extension ".mrf", an
+.IR mrf (5)
+file will be produced instead.
+.SH OPTIONS
+.TP
+.I -h, --help
+displays online help.
+.TP
+.I -v, --version
+displays version information.
+.SH SEE ALSO
+.IR prftopnm (1),
+.IR prf (5),
+.IR mrf (5),
+.IR pbm (5),
+.IR pgm (5),
+.IR ppm (5)
+.SH AUTHOR
+Brian Raiter
+.IR <breadbox@muppetlabs.com> .
