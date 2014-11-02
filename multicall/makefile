@@ -1,4 +1,4 @@
-OBJFIL=main.o popcount.o gcd.o note.o
+OBJFIL=main.o popcount.o gcd.o note.o rm.o mv.o
 TARGET=multicall
 CFLAGS=-Wall -Wextra -Os
 

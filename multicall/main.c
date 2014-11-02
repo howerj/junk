@@ -12,6 +12,8 @@ struct util_list{
 	{"gcd",       main_gcd,      "Given two numbers it will find their Greatest Common Divisor (GCD)"},
 	{"note",      main_note,     "A simple note taking application"},
 	{"popcount",  main_popcount, "Given a list of numbers perform a population count for each one"},
+	{"rm",        main_rm,       "Remove a list of file"},
+	{"mv",        main_mv,       "Move a file"},
 	{NULL,        NULL,          ""}
 };
 
