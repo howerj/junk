@@ -1,3 +1,3 @@
 ## Junk README.md
 
-A junk yard of miscellaneous code. From me and from elsewhere.
+A junk yard of miscellaneous code. From me, but mostly from other people.

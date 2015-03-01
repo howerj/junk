@@ -1,0 +1,1880 @@
+# Part I
+## A Whirlwind Tutorial on Creating Really Teensy ELF Executables for Linux
+## <http://www.muppetlabs.com/~breadbox/software/tiny/teensy.html>
+
+
+(or, "Size Is Everything")
+
+    She studied it carefully for about 15 minutes. Finally, she spoke. "There's something written on here," she said, frowning, "but it's really teensy." 
+
+[Dave Barry, "The Columnist's Caper"]
+
+If you're a programmer who's become fed up with software bloat, then may you find herein the perfect antidote.
+
+This document explores methods for squeezing excess bytes out of simple programs. (Of course, the more practical purpose of this document is to describe a few of the inner workings of the ELF file format and the Linux operating system. But hopefully you can also learn something about how to make really teensy ELF executables in the process.)
+
+Please note that the information and examples given here are, for the most part, specific to ELF executables on a Linux platform running under an Intel-386 architecture. I imagine that a good bit of the information is applicable to other ELF-based Unices, but my experiences with such are too limited for me to say with certainty.
+
+Please also note that if you aren't a little bit familiar with assembly code, you may find parts of this document sort of hard to follow. (The assembly code that appears in this document is written using Nasm; see http://www.nasm.us/.)
+
+In order to start, we need a program. Almost any program will do, but the simpler the program the better, since we're more interested in how small we can make the executable than what the program does.
+
+Let's take an incredibly simple program, one that does nothing but return a number back to the operating system. Why not? After all, Unix already comes with no less than two such programs: true and false. Since 0 and 1 are already taken, we'll use the number 42.
+
+So, here is our first version:
+
+  /* tiny.c */
+  int main(void) { return 42; }
+
+which we can compile and test like so:
+
+  $ gcc -Wall tiny.c
+  $ ./a.out ; echo $?
+  42
+
+So. How big is it? Well, on my machine, I get:
+
+  $ wc -c a.out
+     3998 a.out
+
+(Yours will probably differ some.) Admittedly, that's pretty small by today's standards, but it's almost certainly bigger than it needs to be.
+
+The obvious first step is to strip the executable:
+
+  $ gcc -Wall -s tiny.c
+  $ ./a.out ; echo $?
+  42
+  $ wc -c a.out
+     2632 a.out
+
+That's certainly an improvement. For the next step, how about optimizing?
+
+  $ gcc -Wall -s -O3 tiny.c
+  $ wc -c a.out
+     2616 a.out
+
+That also helped, but only just. Which makes sense: there's hardly anything there to optimize.
+
+It seems unlikely that there's much else we can do to shrink a one-statement C program. We're going to have to leave C behind, and use assembler instead. Hopefully, this will cut out all the extra overhead that C programs automatically incur.
+
+So, on to our second version. All we need to do is return 42 from main(). In assembly language, this means that the function should set the accumulator, eax, to 42, and then return:
+
+  ; tiny.asm
+  BITS 32
+  GLOBAL main
+  SECTION .text
+  main:
+                mov     eax, 42
+                ret
+
+We can then build and test like so:
+
+  $ nasm -f elf tiny.asm
+  $ gcc -Wall -s tiny.o
+  $ ./a.out ; echo $?
+  42
+
+(Hey, who says assembly code is difficult?) And now how big is it?
+
+  $ wc -c a.out
+     2604 a.out
+
+Looks like we shaved off a measly twelve bytes. So much for all the extra overhead that C automatically incurs, eh?
+
+Well, the problem is that we are still incurring a lot of overhead by using the main() interface. The linker is still adding an interface to the OS for us, and it is that interface that actually calls main(). So how do we get around that if we don't need it?
+
+The actual entry point that the linker uses by default is the symbol with the name _start. When we link with gcc, it automatically includes a _start routine, one that sets up argc and argv, among other things, and then calls main().
+
+So, let's see if we can bypass this, and define our own _start routine:
+
+  ; tiny.asm
+  BITS 32
+  GLOBAL _start
+  SECTION .text
+  _start:
+                mov     eax, 42
+                ret
+
+Will gcc do what we want?
+
+  $ nasm -f elf tiny.asm
+  $ gcc -Wall -s tiny.o
+  tiny.o(.text+0x0): multiple definition of `_start'
+  /usr/lib/crt1.o(.text+0x0): first defined here
+  /usr/lib/crt1.o(.text+0x36): undefined reference to `main'
+
+No. Well, actually, yes it will, but first we need to learn how to ask for what we want.
+
+It so happens that gcc recognizes an option called -nostartfiles. From the gcc info pages:
+
+    -nostartfiles
+    Do not use the standard system startup files when linking. The standard libraries are used normally. 
+
+Aha! Now let's see what we can do:
+
+  $ nasm -f elf tiny.asm
+  $ gcc -Wall -s -nostartfiles tiny.o
+  $ ./a.out ; echo $?
+  Segmentation fault
+  139
+
+Well, gcc didn't complain, but the program doesn't work. What went wrong?
+
+What went wrong is that we treated _start as if it were a C function, and tried to return from it. In reality, it's not a function at all. It's just a symbol in the object file which the linker uses to locate the program's entry point. When our program is invoked, it's invoked directly. If we were to look, we would see that the value on the top of the stack was the number 1, which is certainly very un-address-like. In fact, what is on the stack is our program's argc value. After this comes the elements of the argv array, including the terminating NULL element, followed by the elements of envp. And that's all. There is no return address on the stack.
+
+So, how does _start ever exit? Well, it calls the exit() function! That's what it's there for, after all.
+
+Actually, I lied. What it really does is call the _exit() function. (Notice the leading underscore.) exit() is required to finish up some tasks on behalf of the process, but those tasks will never have been started, because we're bypassing the library's startup code. So we need to bypass the library's shutdown code as well, and go directly to the operating system's shutdown processing.
+
+So, let's try this again. We're going to call _exit(), which is a function that takes a single integer argument. So all we need to do is push the number onto the stack and call the function. (We also need to declare _exit() as external.) Here's our assembly:
+
+  ; tiny.asm
+  BITS 32
+  EXTERN _exit
+  GLOBAL _start
+  SECTION .text
+  _start:
+                push    dword 42
+                call    _exit
+
+And we build and test as before:
+
+  $ nasm -f elf tiny.asm
+  $ gcc -Wall -s -nostartfiles tiny.o
+  $ ./a.out ; echo $?
+  42
+
+Success at last! And now how big is it?
+
+  $ wc -c a.out
+     1340 a.out
+
+Almost half the size! Not bad. Not bad at all. Hmmm ... so what other interesting obscure options does gcc have?
+
+Well, this one, appearing immediately after -nostartfiles in the documentation, is certainly eye-catching:
+
+    -nostdlib
+    Don't use the standard system libraries and startup files when linking. Only the files you specify will be passed to the linker. 
+
+That's gotta be worth investigating:
+
+  $ gcc -Wall -s -nostdlib tiny.o
+  tiny.o(.text+0x6): undefined reference to `_exit'
+
+Oops. That's right ... _exit() is, after all, a library function. It has to be filled in from somewhere.
+
+Okay. But surely, we don't need libc's help just to end a program, do we?
+
+No, we don't. If we're willing to leave behind all pretenses of portability, we can make our program exit without having to link with anything else. First, though, we need to know how to make a system call under Linux.
+
+Linux, like most operating systems, provides basic necessities to the programs it hosts via system calls. This includes things like opening a file, reading and writing to file handles — and, of course, shutting down a process.
+
+The Linux system call interface is a single instruction: int 0x80. All system calls are done via this interrupt. To make a system call, eax should contain a number that indicates which system call is being invoked, and other registers are used to hold the arguments, if any. If the system call takes one argument, it will be in ebx; a system call with two arguments will use ebx and ecx. Likewise, edx, esi, and edi are used if a third, fourth, or fifth argument is required, respectively. Upon return from a system call, eax will contain the return value. If an error occurs, eax will contain a negative value, with the absolute value indicating the error.
+
+The numbers for the different system calls are listed in /usr/include/asm/unistd.h. A quick peek will tell us that the exit system call is assigned the number 1. Like the C function, it takes one argument, the value to return to the parent process, and so this will go into ebx.
+
+We now know all we need to know to create the next version of our program, one that won't need assistance from any external functions to work:
+
+  ; tiny.asm
+  BITS 32
+  GLOBAL _start
+  SECTION .text
+  _start:
+                mov     eax, 1
+                mov     ebx, 42  
+                int     0x80
+
+Here we go:
+
+  $ nasm -f elf tiny.asm
+  $ gcc -Wall -s -nostdlib tiny.o
+  $ ./a.out ; echo $?
+  42
+
+Ta-da! And the size?
+
+  $ wc -c a.out
+      372 a.out
+
+Now that's tiny! Almost a fourth the size of the previous version!
+
+So ... can we do anything else to make it even smaller?
+
+How about using shorter instructions?
+
+If we generate a list file for the assembly code, we'll find the following:
+
+  00000000 B801000000        mov        eax, 1
+  00000005 BB2A000000        mov        ebx, 42
+  0000000A CD80              int        0x80
+
+Well, gee, we don't need to initialize all of ebx, since the operating system is only going to use the lowest byte. Setting bl alone will be sufficient, and will take two bytes instead of five.
+
+We can also set eax to one by xor'ing it to zero and then using a one-byte increment instruction; this will save two more bytes.
+
+  00000000 31C0              xor        eax, eax
+  00000002 40                inc        eax
+  00000003 B32A              mov        bl, 42
+  00000005 CD80              int        0x80
+
+I think it's pretty safe to say that we're not going to make this program any smaller than that.
+
+As an aside, we might as well stop using gcc to link our executable, seeing as we're not using any of its added functionality, and just call the linker, ld, ourselves:
+
+  $ nasm -f elf tiny.asm
+  $ ld -s tiny.o
+  $ ./a.out ; echo $?
+  42
+  $ wc -c a.out
+      368 a.out
+
+Four bytes smaller. (Hey! Didn't we shave five bytes off? Well, we did, but alignment considerations within the ELF file caused it to require an extra byte of padding.)
+
+So ... have we reached the end? Is this as small as we can go?
+
+Well, hm. Our program is now seven bytes long. Do ELF files really require 361 bytes of overhead? What's in this file, anyway?
+
+We can peek into the contents of the file using objdump:
+
+  $ objdump -x a.out | less
+
+The output may look like gibberish, but right now let's just focus on the list of sections:
+
+  Sections:
+  Idx Name          Size      VMA       LMA       File off  Algn
+    0 .text         00000007  08048080  08048080  00000080  2**4
+                    CONTENTS, ALLOC, LOAD, READONLY, CODE
+    1 .comment      0000001c  00000000  00000000  00000087  2**0
+                    CONTENTS, READONLY
+
+The complete .text section is listed as being seven bytes long, just as we specified. So it seems safe to conclude that we now have complete control of the machine-language content of our program.
+
+But then there's this other section named ".comment". Who ordered that? And it's 28 bytes long, even! We may not be sure what this .comment section is, but it seems a good bet that it isn't a necessary feature....
+
+The .comment section is listed as being located at file offset 00000087 (hexadecimal). If we use a hexdump program to look at that area of the file, we will see:
+
+  00000080: 31C0 40B3 2ACD 8000 5468 6520 4E65 7477  1.@.*...The Netw
+  00000090: 6964 6520 4173 7365 6D62 6C65 7220 302E  ide Assembler 0.
+  000000A0: 3938 0000 2E73 796D 7461 6200 2E73 7472  98...symtab..str
+
+Well, well, well. Who'd've thought that Nasm would undermine our quest like this? Maybe we should switch to using gas, AT&T syntax notwithstanding....
+
+Alas, if we do:
+
+  ; tiny.s
+  .globl _start
+  .text
+  _start:
+                xorl    %eax, %eax
+                incl    %eax
+                movb    $42, %bl
+                int     $0x80
+
+... we will find:
+
+  $ gcc -s -nostdlib tiny.s
+  $ ./a.out ; echo $?
+  42
+  $ wc -c a.out
+      368 a.out
+
+... no difference!
+
+Well, actually there is some difference. Turning once again to objdump, we see:
+
+  Sections:
+  Idx Name          Size      VMA       LMA       File off  Algn
+    0 .text         00000007  08048074  08048074  00000074  2**2
+                    CONTENTS, ALLOC, LOAD, READONLY, CODE
+    1 .data         00000000  0804907c  0804907c  0000007c  2**2
+                    CONTENTS, ALLOC, LOAD, DATA
+    2 .bss          00000000  0804907c  0804907c  0000007c  2**2
+                    ALLOC
+
+No comment section, but now we have two useless sections for storing our nonexistent data. And even though these sections are zero bytes long, they incur overhead, bringing our file size up for no good reason.
+
+Okay, so just what is all this overhead, and how do we get rid of it?
+
+Well, to answer these questions, we must begin diving into some real wizardry. We need to understand the ELF format.
+
+The canonical document describing the ELF format for Intel-386 architectures can be found at http://refspecs.freestandards.org/elf/elf.pdf. (You can also find a flat-text version of version 1.0 of the standard at http://www.muppetlabs.com/~breadbox/software/ELF.txt.) This specification covers a lot of territory, so if you'd prefer to not read the whole thing yourself, I'll understand. Basically, here's what we need to know:
+
+Every ELF file begins with a structure called the ELF header. This structure is 52 bytes long, and contains several pieces of information that describe the contents of the file. For example, the first sixteen bytes contain an "identifier", which includes the file's magic-number signature (7F 45 4C 46), and some one-byte flags indicating that the contents are 32-bit or 64-bit, little-endian or big-endian, etc. Other fields in the ELF header contain information such as: the target architecture; whether the ELF file is an executable, an object file, or a shared-object library; the program's starting address; and the locations within the file of the program header table and the section header table.
+
+These two tables can appear anywhere in the file, but typically the former appears immediately following the ELF header, and the latter appears at or near the end of the file. The two tables serve similar purposes, in that they identify the component parts of the file. However, the section header table focuses more on identifying where the various parts of the program are within the file, while the program header table describes where and how these parts are to be loaded into memory. In brief, the section header table is for use by the compiler and linker, while the program header table is for use by the program loader. The program header table is optional for object files, and in practice is never present. Likewise, the section header table is optional for executables — but is almost always present!
+
+So, this is the answer to our first question. A fair piece of the overhead in our program is a completely unnecessary section header table, and maybe some equally useless sections that don't contribute to our program's memory image.
+
+So, we turn to our second question: how do we go about getting rid of all that?
+
+Alas, we're on our own here. None of the standard tools will deign to make an executable without a section header table of some kind. If we want such a thing, we'll have to do it ourselves.
+
+This doesn't quite mean that we have to pull out a binary editor and code the hexadecimal values by hand, though. Good old Nasm has a flat binary output format, which will serve us well. All we need now is the image of an empty ELF executable, which we can fill in with our program. Our program, and nothing else.
+
+We can look at the ELF specification, and /usr/include/linux/elf.h, and executables created by the standard tools, to figure out what our empty ELF executable should look like. But, if you're the impatient type, you can just use the one I've supplied here:
+
+  BITS 32
+  
+                org     0x08048000
+  
+  ehdr:                                                 ; Elf32_Ehdr
+                db      0x7F, "ELF", 1, 1, 1, 0         ;   e_ident
+        times 8 db      0
+                dw      2                               ;   e_type
+                dw      3                               ;   e_machine
+                dd      1                               ;   e_version
+                dd      _start                          ;   e_entry
+                dd      phdr - $$                       ;   e_phoff
+                dd      0                               ;   e_shoff
+                dd      0                               ;   e_flags
+                dw      ehdrsize                        ;   e_ehsize
+                dw      phdrsize                        ;   e_phentsize
+                dw      1                               ;   e_phnum
+                dw      0                               ;   e_shentsize
+                dw      0                               ;   e_shnum
+                dw      0                               ;   e_shstrndx
+  
+  ehdrsize      equ     $ - ehdr
+  
+  phdr:                                                 ; Elf32_Phdr
+                dd      1                               ;   p_type
+                dd      0                               ;   p_offset
+                dd      $$                              ;   p_vaddr
+                dd      $$                              ;   p_paddr
+                dd      filesize                        ;   p_filesz
+                dd      filesize                        ;   p_memsz
+                dd      5                               ;   p_flags
+                dd      0x1000                          ;   p_align
+  
+  phdrsize      equ     $ - phdr
+  
+  _start:
+  
+  ; your program here
+  
+  filesize      equ     $ - $$
+
+This image contains an ELF header, identifying the file as an Intel 386 executable, with no section header table and a program header table containing one entry. Said entry instructs the program loader to load the entire file into memory (it's normal behavior for a program to include its ELF header and program header table in its memory image) starting at memory address 0x08048000 (which is the default address for executables to load), and to begin executing the code at _start, which appears immediately after the program header table. No .data segment, no .bss segment, no commentary — nothing but the bare necessities.
+
+So, let's add in our little program:
+
+  ; tiny.asm
+                org     0x08048000
+  
+  ;
+  ; (as above)
+  ;
+
+
+_start: mov bl, 42 xor eax, eax inc eax int 0x80 filesize equ $ - $$
+
+and try it out:
+
+  $ nasm -f bin -o a.out tiny.asm
+  $ chmod +x a.out
+  $ ./a.out ; echo $?
+  42
+
+We have just created an executable completely from scratch. How about that? And now, take a look at its size:
+
+  $ wc -c a.out
+       91 a.out
+
+Ninety-one bytes. Less than one-fourth the size of our previous attempt, and less than one-fortieth the size of our first!
+
+What's more, this time we can account for every last byte. We know exactly what's in the executable, and why it needs to be there. This is, finally, the limit. We can't get any smaller than this.
+
+Or can we?
+
+Well, if you actually stopped to read the ELF specification, you might have noticed a couple of facts. 1) The different parts of an ELF file are permitted to be located anywhere (except the ELF header, which must be at the top of the file), and they can even overlap each other. 2) Some of the fields in the headers aren't actually used.
+
+In particular, I'm thinking of that string of zeros at the end of the 16-byte identification field. They are pure padding, to make room for future expansion of the ELF standard. So the OS shouldn't care at all what's in there. And we're already loading everything into memory anyway, and our program is only seven bytes long....
+
+Can we put our code inside the ELF header itself?
+
+Why not?
+
+  ; tiny.asm
+  
+  BITS 32
+  
+                org     0x08048000
+  
+  ehdr:                                                 ; Elf32_Ehdr
+                db      0x7F, "ELF"                     ;   e_ident
+                db      1, 1, 1, 0, 0
+  _start:       mov     bl, 42
+                xor     eax, eax
+                inc     eax
+                int     0x80
+                dw      2                               ;   e_type
+                dw      3                               ;   e_machine
+                dd      1                               ;   e_version
+                dd      _start                          ;   e_entry
+                dd      phdr - $$                       ;   e_phoff
+                dd      0                               ;   e_shoff
+                dd      0                               ;   e_flags
+                dw      ehdrsize                        ;   e_ehsize
+                dw      phdrsize                        ;   e_phentsize
+                dw      1                               ;   e_phnum
+                dw      0                               ;   e_shentsize
+                dw      0                               ;   e_shnum
+                dw      0                               ;   e_shstrndx
+  
+  ehdrsize      equ     $ - ehdr
+  
+  phdr:                                                 ; Elf32_Phdr
+                dd      1                               ;   p_type
+                dd      0                               ;   p_offset
+                dd      $$                              ;   p_vaddr
+                dd      $$                              ;   p_paddr
+                dd      filesize                        ;   p_filesz
+                dd      filesize                        ;   p_memsz
+                dd      5                               ;   p_flags
+                dd      0x1000                          ;   p_align
+  
+  phdrsize      equ     $ - phdr
+  
+  filesize      equ     $ - $$
+
+After all, bytes are bytes!
+
+  $ nasm -f bin -o a.out tiny.asm
+  $ chmod +x a.out
+  $ ./a.out ; echo $?
+  42
+  $ wc -c a.out
+       84 a.out
+
+Not bad, eh?
+
+Now we've really gone as low as we can go. Our file is exactly as long as one ELF header and one program header table entry, both of which we absolutely require in order to get loaded into memory and run. So there's nothing left to reduce now!
+
+Except ...
+
+Well, what if we could do the same thing to the program header table that we just did to the program? Have it overlap with the ELF header, that is. Is it possible?
+
+It is indeed. Take a look at our program. Note that the last eight bytes in the ELF header bear a certain kind of resemblence to the first eight bytes in the program header table. A certain kind of resemblence that might be described as "identical".
+
+So ...
+
+  ; tiny.asm
+  
+  BITS 32
+  
+                org     0x08048000
+  
+  ehdr:
+                db      0x7F, "ELF"             ; e_ident
+                db      1, 1, 1, 0, 0
+  _start:       mov     bl, 42
+                xor     eax, eax
+                inc     eax
+                int     0x80
+                dw      2                       ; e_type
+                dw      3                       ; e_machine
+                dd      1                       ; e_version
+                dd      _start                  ; e_entry
+                dd      phdr - $$               ; e_phoff
+                dd      0                       ; e_shoff
+                dd      0                       ; e_flags
+                dw      ehdrsize                ; e_ehsize
+                dw      phdrsize                ; e_phentsize
+  phdr:         dd      1                       ; e_phnum       ; p_type
+                                                ; e_shentsize
+                dd      0                       ; e_shnum       ; p_offset
+                                                ; e_shstrndx
+  ehdrsize      equ     $ - ehdr
+                dd      $$                                      ; p_vaddr
+                dd      $$                                      ; p_paddr
+                dd      filesize                                ; p_filesz
+                dd      filesize                                ; p_memsz
+                dd      5                                       ; p_flags
+                dd      0x1000                                  ; p_align
+  phdrsize      equ     $ - phdr
+  
+  filesize      equ     $ - $$
+
+And sure enough, Linux doesn't mind our parsimony one bit:
+
+  $ nasm -f bin -o a.out tiny.asm
+  $ chmod +x a.out
+  $ ./a.out ; echo $?
+  42
+  $ wc -c a.out
+       76 a.out
+
+Now we've really gone as low as we can go. There's no way to overlap the two structures any more than this. The bytes simply don't match up. This is the end of the line!
+
+Unless, that is, we could change the contents of the structures to make them match even further....
+
+How many of these fields is Linux actually looking at, anyway? For example, does Linux actually check to see if the e_machine field contains 3 (indicating an Intel 386 target), or is it just assuming that it does?
+
+As a matter of fact, in that case it does. But a surprising number of other fields are being quietly ignored.
+
+So: Here's what is and isn't essential in the ELF header. The first four bytes have to contain the magic number, or else Linux won't touch it. The other three bytes in the e_ident field are not checked, however, which means we have no less than twelve contiguous bytes we can set to anything at all. e_type has to be set to 2, to indicate an executable, and e_machine has to be 3, as just noted. e_version is, like the version number inside e_ident, completely ignored. (Which is sort of understandable, seeing as currently there's only one version of the ELF standard.) e_entry naturally has to be valid, since it points to the start of the program. And clearly, e_phoff needs to contain the correct offset of the program header table in the file, and e_phnum needs to contain the right number of entries in said table. e_flags, however, is documented as being currently unused for Intel, so it should be free for us to reuse. e_ehsize is supposed to be used to verify that the ELF header has the expected size, but Linux pays it no mind. e_phentsize is likewise for validating the size of the program header table entries. This one was unchecked in older kernels, but now it needs to be set correctly. Everything else in the ELF header is about the section header table, which doesn't come into play with executable files.
+
+And now how about the program header table entry? Well, p_type has to contain 1, to mark it as a loadable segment. p_offset really needs to have the correct file offset to start loading. Likewise, p_vaddr needs to contain the proper load address. Note, however, that we're not required to load at 0x08048000. Almost any address can be used as long as it's above 0x00000000, below 0x80000000, and page-aligned. The p_paddr field is documented as being ignored, so that's guaranteed to be free. p_filesz indicates how many bytes to load out of the file into memory, and p_memsz indicates how large the memory segment needs to be, so these numbers ought to be relatively sane. p_flags indicates what permissions to give the memory segment. It needs to be readable (4), or it won't be usable at all, and it needs to also be executable (1), or else we can't execute code in it. Other bits can probably be set as well, but we need to have those at minimum. Finally, p_align gives the alignment requirements for the memory segment. This field is mainly used when relocating segments containing position-independent code (as for shared libraries), so for an executable file Linux will ignore whatever garbage we store here.
+
+All in all, that's a fair bit of leeway. In particular, a bit of scrutiny will reveal that most of the necessary fields in the ELF header are in the first half - the second half is almost completely free for munging. With this in mind, we can interpose the two structures quite a bit more than we did previously:
+
+  ; tiny.asm
+  
+  BITS 32
+  
+                org     0x00200000
+  
+                db      0x7F, "ELF"             ; e_ident
+                db      1, 1, 1, 0, 0
+  _start:
+                mov     bl, 42
+                xor     eax, eax
+                inc     eax
+                int     0x80
+                dw      2                       ; e_type
+                dw      3                       ; e_machine
+                dd      1                       ; e_version
+                dd      _start                  ; e_entry
+                dd      phdr - $$               ; e_phoff
+  phdr:         dd      1                       ; e_shoff       ; p_type
+                dd      0                       ; e_flags       ; p_offset
+                dd      $$                      ; e_ehsize      ; p_vaddr
+                                                ; e_phentsize
+                dw      1                       ; e_phnum       ; p_paddr
+                dw      0                       ; e_shentsize
+                dd      filesize                ; e_shnum       ; p_filesz
+                                                ; e_shstrndx
+                dd      filesize                                ; p_memsz
+                dd      5                                       ; p_flags
+                dd      0x1000                                  ; p_align
+  
+  filesize      equ     $ - $$
+
+As you can (hopefully) see, the first twenty bytes of the program header table now overlap the last twenty bytes of the ELF header. The two dovetail quite nicely, actually. There are only two parts of the ELF header within the overlapped region that matter. The first is the e_phnum field, which just happens to coincide with the p_paddr field, one of the few fields in the program header table which is definitely ignored. The other is the e_phentsize field, which coincides with the top half of the p_vaddr field. These are made to match up by selecting a non-standard load address for our program, with a top half equal to 0x0020.
+
+Now we have really left behind all pretenses of portability ...
+
+  $ nasm -f bin -o a.out tiny.asm
+  $ chmod +x a.out
+  $ ./a.out ; echo $?
+  42
+  $ wc -c a.out
+       64 a.out
+
+... but it works! And the program is twelve bytes shorter, exactly as predicted.
+
+This is where I say that we can't do any better than this, but of course, we already know that we can — if we could get the program header table to reside completely within the ELF header. Can this holy grail be achieved?
+
+Well, we can't just move it up another twelve bytes without hitting hopeless obstacles trying to reconcile several fields in both structures. The only other possibility would be to have it start immediately following the first four bytes. This puts the first part of the program header table comfortably within the e_ident area, but still leaves problems with the rest of it. After some experimenting, it looks like it isn't going to quite be possible.
+
+However, it turns out that there are still a couple more fields in the program header table that we can pervert.
+
+We noted that p_memsz indicates how much memory to allocate for the memory segment. Obviously it needs to be at least as big as p_filesz, but there wouldn't be any harm if it was larger. Just because we ask for memory doesn't mean we have to use it, after all.
+
+Secondly, it turns out that, contrary to all my expectations, the executable bit can be dropped from the p_flags field. It turns out that the readable and executable bits are redundant: either one will imply the other.
+
+So, with these facts in mind, we can reorganize the file into this little monstrosity:
+
+  ; tiny.asm
+  
+  BITS 32
+  
+                org     0x00010000
+  
+                db      0x7F, "ELF"             ; e_ident
+                dd      1                                       ; p_type
+                dd      0                                       ; p_offset
+                dd      $$                                      ; p_vaddr 
+                dw      2                       ; e_type        ; p_paddr
+                dw      3                       ; e_machine
+                dd      _start                  ; e_version     ; p_filesz
+                dd      _start                  ; e_entry       ; p_memsz
+                dd      4                       ; e_phoff       ; p_flags
+  _start:
+                mov     bl, 42                  ; e_shoff       ; p_align
+                xor     eax, eax
+                inc     eax                     ; e_flags
+                int     0x80
+                db      0
+                dw      0x34                    ; e_ehsize
+                dw      0x20                    ; e_phentsize
+                dw      1                       ; e_phnum
+                dw      0                       ; e_shentsize
+                dw      0                       ; e_shnum
+                dw      0                       ; e_shstrndx
+  
+  filesize      equ     $ - $$
+
+The p_flags field has been changed from 5 to 4, as we noted we could get away with doing. This 4 is also the value of the e_phoff field, which gives the offset into the file for the program header table, which is exactly where we've located it. The program (remember that?) has been moved down to lower part of the ELF header, beginning at the e_shoff field and ending inside the e_flags field.
+
+Note that the load address has been changed to a much lower number — about as low as it can be, in fact. This keeps the value in the e_entry field to a reasonably small number, which is good since it's also the p_memsz number. (Actually, with virtual memory it hardly matters — we could have left it at our original value and it would work just as well. But there's no harm in being polite.)
+
+The change to p_filesz may require an explanation. Because we aren't setting the write bit in the p_flags field, Linux won't let us define a p_memsz value greater than p_filesz, since it can't zero-initialize those extra bytes if they aren't writeable. Since we can't change the p_flags field without moving the program header table out of alignment, you might think that the only solution would be to lower the p_memsz value back down to equal p_filesz (which would make it impossible to share it with e_entry). However, another solution exists, namely to increase p_filesz to equal p_memsz. That means they're both larger than the real file size — quite a bit larger, in fact — but it absolves the loader from having to write to read-only memory, which is all it cared about.
+
+And so ...
+
+  $ nasm -f bin -o a.out tiny.asm
+  $ chmod +x a.out
+  $ ./a.out ; echo $?
+  42
+  $ wc -c a.out
+       52 a.out
+
+... and so, with both the program header table and the program itself completely embedded within the ELF header, our executable file is now exactly as big as the ELF header! No more, no less. And still running without a single complaint from Linux!
+
+Now, finally, we have truly and certainly reached the absolute minimum possible. There can be no question about it, right? After all, we have to have a complete ELF header (even if it is badly mangled), or else Linux wouldn't give us the time of day!
+
+Right?
+
+Wrong. We have one last dirty trick left.
+
+It seems to be the case that if the file isn't quite the size of a full ELF header, Linux will still play ball, and fill out the missing bytes with zeros. We have no less than seven zeros at the end of our file, and if we drop them from the file image:
+
+  ; tiny.asm
+  
+  BITS 32
+  
+                org     0x00010000
+  
+                db      0x7F, "ELF"             ; e_ident
+                dd      1                                       ; p_type
+                dd      0                                       ; p_offset
+                dd      $$                                      ; p_vaddr 
+                dw      2                       ; e_type        ; p_paddr
+                dw      3                       ; e_machine
+                dd      _start                  ; e_version     ; p_filesz
+                dd      _start                  ; e_entry       ; p_memsz
+                dd      4                       ; e_phoff       ; p_flags
+  _start:
+                mov     bl, 42                  ; e_shoff       ; p_align
+                xor     eax, eax
+                inc     eax                     ; e_flags
+                int     0x80
+                db      0
+                dw      0x34                    ; e_ehsize
+                dw      0x20                    ; e_phentsize
+                db      1                       ; e_phnum
+                                                ; e_shentsize
+                                                ; e_shnum
+                                                ; e_shstrndx
+  
+  filesize      equ     $ - $$
+
+... we can, incredibly enough, still produce a working executable:
+
+  $ nasm -f bin -o a.out tiny.asm
+  $ chmod +x a.out
+  $ ./a.out ; echo $?
+  42
+  $ wc -c a.out
+       45 a.out
+
+Here, at last, we have honestly gone as far as we can go. There is no getting around the fact that the 45th byte in the file, which specifies the number of entries in the program header table, needs to be non-zero, needs to be present, and needs to be in the 45th position from the start of the ELF header. We are forced to conclude that there is nothing more that can be done.
+
+This forty-five-byte file is less than one-eighth the size of the smallest ELF executable we could create using the standard tools, and is less than one-fiftieth the size of the smallest file we could create using pure C code. We have stripped everything out of the file that we could, and put to dual purpose most of what we couldn't.
+
+Of course, half of the values in this file violate some part of the ELF standard, and it's a wonder that Linux will even consent to sneeze on it, much less give it a process ID. This is not the sort of program to which one would normally be willing to confess authorship.
+
+On the other hand, every single byte in this executable file can be accounted for and justified. How many executables have you created lately that you can say that about?
+
+# Part II
+## Some Final Breezes (a postscript)
+## <http://www.muppetlabs.com/~breadbox/software/tiny/teensyps.html>
+
+I wrote "A Whirlwind Tutorial ..." back in July 2, 1999, almost entirely in one sitting. Having spent months figuring out the ELF executable file format, and having had all that effort actually pay off well beyond my original expectations, I wanted to write down all the paths and blind alleys I had just finished exploring.
+
+I had created a 45-byte executable, and I wanted to share it with the world.
+
+Over time, I've had a few omissions in the original essay pointed out to me, which I couldn't fix in the original without derailing. (And I don't feel comfortable making significant modifications to the original at this late date.) So I've put those updates in this postscript instead.
+
+When I wrote the original essay, I was unfamiliar with the fact that the -R option to strip, which removes sections by name, allows you to name sections that do not get removed by default. With careful use of this feature of strip, both the C version and the assembly version of the executable can be reduced a bit more.
+
+Of course, stripping arbitrary sections can easily render your executable nonfunctional. Even if the sections aren't being used, an executable can't be correctly memory-mapped if any file offset doesn't match its equivalent memory-page offset. And in any case, strip won't remove the section header table itself, nor the section header string table, so hand-coding the binary image is still necessary to get below the 200-byte mark.
+
+After producing the seven-byte version of the program, I made the comment: "I think it's pretty safe to say that we're not going to make this program any smaller than that."
+
+Well, actually, it could be made smaller. When Linux starts up a new executable, one of the things it does is zero out the accumulator (as well as most of the other registers). Taking advantage of this fact would have allowed me to remove the xor, bringing the program down to five bytes. However, this behavior is certainly not documented, and there's no guarantee that it can be counted on to stay that way (other than the lack of any obvious reason to change it). Anyway, such a change wouldn't have had any effect on the size of the final versions.
+
+Of course, the biggest omission in the original document is a question I left unanswered. The following passage used to appear near the end:
+
+    ... it turns out that, contrary to every expectation, the executable bit can be dropped from the p_flags field, and Linux will set it for us anyway. Why this works, I honestly don't know — maybe because Linux sees that the entry point goes to this segment? In any case, it works. 
+
+As it turns out, my guess was right — but only in a twistedly pedantic way.
+
+I knew, of course, that Linux uses a flat-memory model, in which every selector register points to the same physical memory area. What I didn't know was that Linux memory is even flatter than that: every process (except the kernel) uses the exact same set of selectors.
+
+When the kernel boots up, it creates the global descriptor table. One of the entries in this table is marked as being readable and executable, and another is marked as being readable and writeable. These two descriptors are then used as every program's cs and ds/es/ss registers. Changing what these selectors actually point to is then handled at the paging level, in the linear-to-physical memory translation.
+
+Of course, memory pages have their own, independent protection flags, but they only indicate read-write vs. read-only. You can't mark a page as being executable or non-executable. (As it turns out, you never need to set more than one bit of the p_flags field. Setting either the readable or the executable bit will create a read-only page, and setting the writeable bit will create a read-write page.)
+
+So, the actual error in my thinking was assuming that Linux was allocating selectors for every process. I couldn't see why Linux would even create an executable selector when none of the loadable segments of the ELF file were marked as being executable. But in reality, Linux had created the executable selector long before my program was even compiled.
+
+Finally, it must be confessed that I have had to make some minor changes to some of the versions of the program in the essay, as the Linux kernel has (over the years) become less forgiving about some of the liberties I originally took.
+
+The first time this happened, it was because the kernel stopped accepting executables that had an invalid value in the ELF header's e_phsize field. This only affect one or two of the intermediate versions of the program, and was relatively easy to fix up.
+
+On the second occasion, one of the early versions of the assembler started crashing, specifically the one that used _start and called the libc exit() function. I had to change it to use _exit(), and added a short paragraph to the essay explaining the difference between the two functions.
+
+The third and most serious change was when the kernel stopped allowing non-writable memory to be zero-initialized. This required changing the final versions of the program so that the p_filesz and p_memsz were equal, as well as inserting another explanatory paragraph.
+
+(No further breakages have occurred since that one, and hopefully as 32-bit kernels become obsolete, the kernel code supporting 32-bit executables will remain as-is for the foreseeable future.)
+
+# Part III
+## <http://www.muppetlabs.com/~breadbox/software/tiny/revisit.html>
+## The Teensy Executable Revisited 
+## (or, "Thunderclouds Gather on the Horizon") 
+
+On a couple of occasions, people have responded to my original essay with the comment that what I've created by the end isn't really an ELF executable. Rather, it is a file that the Linux kernel, in its current incarnation, happens to mistake for an ELF executable.
+
+It's a fair point. That 45-byte file clearly doesn't conform to numerous requirements of the ELF specification. But can you blame me? How could I have stopped at the point just before I tossed the ELF specification out the window, knowing what might still be possible?
+
+But to satisfy these purists, and the puritan side in all of us, I've created this sequel.
+
+So. We have an executable that we whittled down to 45 bytes. We now want to bring it into rigid conformance with published standards, while still keeping it as small as possible.
+
+The point at which we strayed from straight and narrow path was when we started fiddling with "unused" fields in the ELF header. So let's back up to before that point:
+
+  BITS 32
+  
+                org     0x08048000
+  
+  ehdr:                                                 ; Elf32_Ehdr
+                db      0x7F, "ELF", 1, 1, 1            ;   e_ident
+        times 9 db      0
+                dw      2                               ;   e_type
+                dw      3                               ;   e_machine
+                dd      1                               ;   e_version
+                dd      _start                          ;   e_entry
+                dd      phdr - $$                       ;   e_phoff
+                dd      0                               ;   e_shoff
+                dd      0                               ;   e_flags
+                dw      ehdrsz                          ;   e_ehsize
+                dw      phdrsz                          ;   e_phentsize
+                dw      1                               ;   e_phnum
+                dw      0                               ;   e_shentsize
+                dw      0                               ;   e_shnum
+                dw      0                               ;   e_shstrndx
+  ehdrsz        equ     $ - ehdr
+  
+  phdr:                                                 ; Elf32_Phdr
+                dd      1                               ;   p_type
+                dd      0                               ;   p_offset
+                dd      $$                              ;   p_vaddr
+                dd      $$                              ;   p_paddr
+                dd      filesz                          ;   p_filesz
+                dd      filesz                          ;   p_memsz
+                dd      5                               ;   p_flags
+                dd      0x1000                          ;   p_align
+  phdrsz        equ     $ - phdr
+  
+  _start:
+                xor     eax, eax
+                inc     eax
+                mov     bl, 42
+                int     0x80
+  
+  filesz        equ     $ - $$
+
+This was our ninety-one-byte version. So: are we stuck with this as our best size? No, not quite. We violated no rules when we overlapped the ELF header and the program header table by eight bytes. The ELF specification explicitly permits overlap of different data structures within the file. So let's do that here:
+
+  ; tiny.asm
+  
+  BITS 32
+  
+                org     0x08048000
+  
+  ehdr:
+                db      0x7F, "ELF", 1, 1, 1    ; e_ident
+        times 9 db      0
+                dw      2                       ; e_type
+                dw      3                       ; e_machine
+                dd      1                       ; e_version
+                dd      _start                  ; e_entry
+                dd      phdr - $$               ; e_phoff
+                dd      0                       ; e_shoff
+                dd      0                       ; e_flags
+                dw      ehdrsz                  ; e_ehsize
+                dw      phdrsz                  ; e_phentsize
+  phdr:         dd      1                       ; e_phnum       ; p_type
+                                                ; e_shentsize
+                dd      0                       ; e_shnum       ; p_offset
+                                                ; e_shstrndx
+  ehdrsz        equ     $ - ehdr
+                dd      $$                                      ; p_vaddr
+                dd      $$                                      ; p_paddr
+                dd      filesz                                  ; p_filesz
+                dd      filesz                                  ; p_memsz
+                dd      5                                       ; p_flags
+                dd      0x1000                                  ; p_align
+  phdrsz        equ     $ - phdr
+  
+  _start:       xor     eax, eax
+                inc     eax
+                mov     bl, 42
+                int     0x80
+  
+  filesz        equ     $ - $$
+
+That gives us eighty-three bytes. What else can we do? Seems like there isn't much. In desperation, we might turn back to the ELF specification and read it over again, looking for something.
+
+Are there any guarantees anything about the initial register values? Only for one register: edx. And what is says is that it will contain either zero, or the address of a final shutdown procedure. So, no guarantees at all, really. Keep looking.
+
+A-ha: The p_paddr field of the program header table structure! Every other field of the headers which doesn't apply to to Intel architecture, or doesn't apply to an executable file — or, at least, not to our executable file — is required by the ELF specification to be set to zero. But for the p_paddr field, the specification says the field has unspecified contents. So we have four bytes that we can play with, after all.
+
+What can we do with them? Use it to hold part of our program, naturally. Of course, we can't put the whole program there, so we'll need to waste two of the four bytes on a jmp instruction, in order to get to the rest of it. But that still leaves two bytes that we can use, and the first instruction of our program is exactly two bytes long.
+
+  ; tiny.asm
+  
+  BITS 32
+  
+                org     0x08048000
+  
+  ehdr:
+                db      0x7F, "ELF", 1, 1, 1    ; e_ident
+        times 9 db      0
+                dw      2                       ; e_type
+                dw      3                       ; e_machine
+                dd      1                       ; e_version
+                dd      _start                  ; e_entry
+                dd      phdr - $$               ; e_phoff
+                dd      0                       ; e_shoff
+                dd      0                       ; e_flags
+                dw      ehdrsz                  ; e_ehsize
+                dw      phdrsz                  ; e_phentsize
+  phdr:         dd      1                       ; e_phnum       ; p_type
+                                                ; e_shentsize
+                dd      0                       ; e_shnum       ; p_offset
+                                                ; e_shstrndx
+  ehdrsz        equ     $ - ehdr
+                dd      $$                                      ; p_vaddr
+  _start:       xor     eax, eax                                ; p_paddr
+                jmp     short part2
+                dd      filesz                                  ; p_filesz
+                dd      filesz                                  ; p_memsz
+                dd      5                                       ; p_flags
+                dd      0x1000                                  ; p_align
+  phdrsz        equ     $ - phdr
+  
+  part2:        inc     eax
+                mov     bl, 42
+                int     0x80
+  
+  filesz        equ     $ - $$
+
+So. Eighty-one bytes. Is that all?
+
+The next field after the p_paddr field is the p_filesz field. If only we could overlap the jmp instruction with that, we could squeeze another instruction in there. But alas, the first byte of that field is the size of the entire file, which would be an unwise jump to make. And the remaining bytes are zeros. That approach doesn't look too promising.
+
+What about the field before p_paddr? That's the address the program is to be loaded at. Well, we already know we don't have to use the default value of 0x08048000. We do need to keep the address page-aligned, at the very least, but we should be able to fit a two-byte instruction into the top half of the address. However, our xor won't work for that. Remember that this is little-endian. The bytes of our program are currently:
+
+  31C0              xor        eax, eax
+  EB10              jmp        short part2
+  
+  40        part2:  inc        eax
+  B32A              mov        bl, 42
+  CD80              int        0x80
+
+The xor instruction would leave C0 as the top byte, which has the high bit set, and Linux doesn't appreciate us putting our code there. (As a general rule, in a 32-bit executable, the top half of memory is reserved for dynamically assigned addresses: the heap, the stack, and shared-object libraries.)
+
+The "mov bl, 42" instruction, on the other hand, will give us a perfectly acceptable top address byte. So, we can change the load address to 0x2AB30000, and with a little rearranging we have:
+
+  ; tiny.asm
+  
+  BITS 32
+  
+                org     0x2AB30000
+  
+  ehdr:
+                db      0x7F, "ELF", 1, 1, 1    ; e_ident
+        times 9 db      0
+                dw      2                       ; e_type
+                dw      3                       ; e_machine
+                dd      1                       ; e_version
+                dd      _start                  ; e_entry
+                dd      phdr - $$               ; e_phoff
+                dd      0                       ; e_shoff
+                dd      0                       ; e_flags
+                dw      ehdrsz                  ; e_ehsize
+                dw      phdrsz                  ; e_phentsize
+  phdr:         dd      1                       ; e_phnum       ; p_type
+                                                ; e_shentsize
+                dd      0                       ; e_shnum       ; p_offset
+                                                ; e_shstrndx
+  ehdrsz        equ     $ - ehdr
+                dw      0                                       ; p_vaddr
+  _start:       mov     bl, 42
+                xor     eax, eax                                ; p_paddr
+                jmp     short part2
+                dd      filesz                                  ; p_filesz
+                dd      filesz                                  ; p_memsz
+                dd      5                                       ; p_flags
+                dd      0x1000                                  ; p_align
+  phdrsz        equ     $ - phdr
+  
+  part2:        inc     eax
+                int     0x80
+  
+  filesz        equ     $ - $$
+
+So we are now at seventy-nine bytes. If we can just find room for one more byte, for the "inc eax" instruction, we could replace the jump in the p_addr field with the "int 0x80", and thus have the entire program legally inside the headers! Just one more lousy byte …
+
+Perhaps we could just let the last byte of the program spill over into the next field? That would be the p_filesz field, which specifies the size of the program segment in the file. The last byte of the program is 0x80, which is certainly too big to be our file size. That is to say: Yes, we could lie about the file's size, and Linux will look the other way — but we're supposed to be on the straight and narrow here.
+
+The field after p_filesz, however, is p_memsz. If only these two fields were reversed, there wouldn't be a problem. We've looked at this field before: it specifies how much memory to allocate when loading the program into memory. Setting that field to be larger than the file size is perfectly fine.
+
+But here is a way that we can use this field: We can jump over p_filesz and into p_memsz. If we try this, we will find that we can, in fact, come out ahead:
+
+  ; tiny.asm
+  
+  BITS 32
+  
+                org     0x2AB30000
+  
+  ehdr:
+                db      0x7F, "ELF", 1, 1, 1    ; e_ident
+        times 9 db      0
+                dw      2                       ; e_type
+                dw      3                       ; e_machine
+                dd      1                       ; e_version
+                dd      _start                  ; e_entry
+                dd      phdr - $$               ; e_phoff
+                dd      0                       ; e_shoff
+                dd      0                       ; e_flags
+                dw      ehdrsz                  ; e_ehsize
+                dw      phdrsz                  ; e_phentsize
+  phdr:         dd      1                       ; e_phnum       ; p_type
+                                                ; e_shentsize
+                dd      0                       ; e_shnum       ; p_offset
+                                                ; e_shstrndx
+  ehdrsz        equ     $ - ehdr
+                dw      0                                       ; p_vaddr
+  _start:       mov     bl, 42
+                xor     eax, eax                                ; p_paddr
+                jmp     short part2
+                dd      filesz                                  ; p_filesz
+  part2:        inc     eax                                     ; p_memsz
+                int     0x80
+                db      0
+                dd      5                                       ; p_flags
+                dd      0x1000                                  ; p_align
+  phdrsz        equ     $ - phdr
+  
+  filesz        equ     $ - $$
+
+And we have arrived at seventy-six bytes!
+
+This version has the disadvantage that the program requests a fair chunk of memory. 0x0080CD40 bytes, to be precise, or eight megabytes. Of course the memory is never actually accessed, so it hardly matters, what with virtual memory and all. All this number really indicates is at what address Linux will report a segfault instead of trying to allocate a page of RAM. So there's no real harm done.
+
+But it turns out there is a way to use a single byte to jump over four bytes. How? By using a five-byte instruction, of course! Consider a nice, innocuous instruction like "cmp eax, imm32". The only effect it has is to set the flags. Well, that and it advances the instruction pointer:
+
+  ; tiny.asm
+  
+  BITS 32
+  
+                org     0x2AB30000
+  
+  ehdr:
+                db      0x7F, "ELF", 1, 1, 1    ; e_ident
+        times 9 db      0
+                dw      2                       ; e_type
+                dw      3                       ; e_machine
+                dd      1                       ; e_version
+                dd      _start                  ; e_entry
+                dd      phdr - $$               ; e_phoff
+                dd      0                       ; e_shoff
+                dd      0                       ; e_flags
+                dw      ehdrsz                  ; e_ehsize
+                dw      phdrsz                  ; e_phentsize
+  phdr:         dd      1                       ; e_phnum       ; p_type
+                                                ; e_shentsize
+                dd      0                       ; e_shnum       ; p_offset
+                                                ; e_shstrndx
+  ehdrsz        equ     $ - ehdr
+                dw      0                                       ; p_vaddr
+  _start:       mov     bl, 42
+                xor     eax, eax                                ; p_paddr
+                inc     eax
+                cmp     eax, filesz                             ; p_filesz
+                int     0x80                                    ; p_memsz
+                dw      0
+                dd      5                                       ; p_flags
+                dd      0x1000                                  ; p_align
+  phdrsz        equ     $ - phdr
+  
+  filesz        equ     $ - $$
+
+The first byte of the compare instruction is at the last byte of the p_paddr field, leaving the four bytes of immediate data. Our program gets a ride across an intact p_filesz value at half the fare, and that lets us move the increment instruction out of the p_memsz field. This leaves that field holding a value of 0x000080CD, or a little over 32K — a much friendlier amount of useless memory to allocate.
+
+This is the final version of our new program. It is 76 bytes long, so we have established conformance with the ELF specification at a cost of 31 bytes. Not bad, all things considered. And now we have two programs for which we can say that every byte has been accounted for.
+
+But have we truly silenced the purists?
+
+Some of them, yes. But a few are still present, tapping an accusing index finger on our int instruction. Oh, yeah. That. Direct system calls are not actually part of the documented interface with the kernel. (Not for the likes of us, anyway.) The fact that system call no. 1 is exit isn't guaranteed to stay the same under future revisions. Who knows? It's possible that a later kernel will need to introduce new functionality to the exit function, and so, in order to maintain binary backwards-compatibility, they'll introduce a new exit function with a currently-unused system call number, and deprecate the old one.
+
+Admittedly, this is extremely unlikely to happen with such a basic necessity as exit. But it does happen. For example, there are no less than three system calls that implement the uname function, the first two having both been deprecated. In order to add more information to the utsname structure, new system calls had to be introduced, permitting the older ones to continue to adhere to the original ABI for backwards-compatibility with older binaries. (If, at some point, everyone was confident that there were no more older binaries floating around, those system calls could be removed entirely, and then perhaps new ones could reuse those numbers. Except of course there are obnoxious people like me who impede such progress by hard-coding direct system calls!)
+
+So, okay. If we're trying to be completely above-board, then we're still in the doghouse. And the only way out is to strictly adhere to the documented ABI. In this case, that means we need to exit by using _exit. Not the system call, the function. The one that's supplied by libc. Which means that (groan) we need to re-introduce all that dynamic linking overhead that we've so gratefully avoided so far.
+
+That means we need to learn exactly how ELF binaries make dynamic linking happen, so that we can do it ourselves (and in hopefully less space). That's not a trivial subject, however, so we're going to have to save it for the next essay.
+
+# Part IV
+## A Whirlwind Tutorial on Creating Somewhat Teensy ELF Executables for Linux
+## (or, "Okay Maybe Size Isn't Quite Everything")
+## <http://www.muppetlabs.com/~breadbox/software/tiny/somewhat.html>
+
+All right. We have taken on the task of manually constructing a Linux ELF executable that dynamically links with libc in order to call its _exit() function. The idea is to produce an executable that is as small as possible while still rigidly adhering to the requirements of the ELF specification and the Linux ABI.
+
+Dynamic linking is a rather involved process, something akin to jet planes hooking up and refueling in midair. A lot of machinery has to be in place to do the business that ld takes care of when linking statically. Back in the original tutorial, we shed a kilobyte from our program size when we threw out libc and started making direct system calls. Now it's time to bite the bullet and see how much of it we have to put back in.
+
+(By the way, note that we're going to continue to keep the focus on 32-bit executables. Most everything discussed here also applies equally to 64-bit executables, though.)
+
+So, what does an executable need, in order to dynamically link with a shared object?
+
+Well, for starters, it needs a dynamic section. This structure is a sort of miscellaneous junk drawer for all the pieces of information that the linker needs to know about at run time. Its form is an array of 32-bit values, with the first value used to indicate what the second value refers to. In other words, they form key-value pairs, with numeric identifiers for the keys.
+
+The ELF specification explicitly spells out which entries in the dynamic structure are mandatory, fortunately. Quite a few of the mandatory entries are values that refer to other ELF structures — and that means we're going to need to include those structures, too. Ack. We need to back up for a moment here, before we get in over our heads too quickly. One new structure at a time.
+
+For starters, what exactly needs to happen for dynamic linking to work? Well, a dynamically linked function (or any other symbol) has an address that isn't determined until the calling program is actually in memory. At some point after that the dynamic linker has to get involved, so that when a dynamic address is needed, it can intervene. The linker must be able to retrieve the name of the symbol, figure out which library contains the symbol, find the address of the symbol in the process's memory space (mapping the library into the process's memory space first if it isn't there alreay), and finally insert the retrieved address where the process expects to find it.
+
+Right off we can see that the executable is going to need to contain some text strings. Somewhere, it needs to have the names of the dynamically-linked symbols, as well as the names of the dynamic libraries. Presumably there also needs to be some kind of mapping between the symbols and the places in the assembly code where the symbols are referred to.
+
+Let's start with the storing of the names. These text strings are kept in a string table. An ELF executable can have any number of string tables, but a dynamically linked executable needs to have at least one. The format of a string table is very simple: It's simply a continuous stream of characters, with NUL bytes separating one string from the next. A particular string within the table is then identified by its offset within the table. The first byte of a string table must always be a NUL byte; thus an offset of zero always means the empty string.
+
+That sounds simple enough. Let's put together a string table right now. We'll put two strings in it — the name of the function we want to link to, and the name of the library to find it in:
+
+  strtab:
+                db      0
+  libc_name     equ     $ - strtab
+                db      'libc.so.6', 0
+  exit_name     equ     $ - strtab
+                db      '_exit', 0
+
+The libc_name and exit_name values provide the offsets to the strings within the table. Presumably there will be some kind of "symbol table" that will use those offsets, right?
+
+Right. A symbol table, like all ELF tables, takes the form of an array of structures. The structures have the following form:
+
+                                        ; Elf32_Sym
+                dd      0               ;   st_name
+                dd      0               ;   st_value
+                dd      0               ;   st_size
+                db      0               ;   st_info
+                db      0               ;   st_other
+                dw      0               ;   st_shndx
+
+st_name is the string table offset to the symbol's actual name. We've got that covered already. st_value and st_size provide the symbol's "value" and "size". What these things actually mean varies for different kinds of symbols. However, the value and size of an externally-defined symbol is always zero, meaning unknown. So, we're good there. st_other is not currently used and so is always zero. Check. st_shndx provides the index of the section in the section header table to which that symbol belongs. We don't have a section header table, so: Zero. Check. That just leaves st_info.
+
+The st_info byte actually holds two values (thus the vague name), each four bits in size. The low nybble indicates the type of object this symbol refers to. The two important possibilities are STT_OBJECT — i.e., some kind of variable — and STT_FUNC — i.e., what we're interested in. The high nybble of the st_info field indicates the symbol's binding. We have three choices here: STB_LOCAL, STB_GLOBAL, and STB_WEAK. Weak? What's that? A weak symbol mostly works like a global symbol. It differs in that it is not an error for there to be more than one weak symbol definition with the same name. Since we're importing and not exporting, the distinction isn't important to us. We'll stick with global.
+
+The ELF specification tells us that STT_FUNC has a value of 2 and STB_GLOBAL has a value of 1. So we have all the information we need to fill in our symbol table now, don't we? Hold on: One more detail. All symbol tables need to have an empty first entry. As with string tables, a symbol table index of zero always indicates an undefined or invalid symbol.
+
+So now we can create our symbol table:
+
+  %define STT_FUNC        2
+  %define STB_GLOBAL      1
+  
+  %define ST_INFO(b, t)   (((b) << 4) | (t))
+  
+  symtab:                                               ; Elf32_Sym
+                dd      0                               ;   st_name
+                dd      0                               ;   st_value
+                dd      0                               ;   st_size
+                db      0                               ;   st_info
+                db      0                               ;   st_other
+                dw      0                               ;   st_shndx
+  
+                dd      exit_name                       ;   st_name
+                dd      0                               ;   st_value
+                dd      0                               ;   st_size
+                db      ST_INFO(STB_GLOBAL, STT_FUNC)   ;   st_info
+                db      0                               ;   st_other
+                dw      0                               ;   st_shndx
+
+Well, that was easy.
+
+Too easy, really. Weren't we expecting there to be some kind of mapping between symbol names and their use in the actual code? There doesn't seem to be anything for that in this table.
+
+And in fact there isn't. This table just describes the type of each symbol. After all, a single symbol can get referenced many times. It would be a waste to repeat all of this stuff for each and every reference. So for the actual mapping, we have … yet another table! The relocation table, to be precise.
+
+An entry in the relocation table is very simple, and looks like this:
+
+                                        ; Elf32_Rel
+                dd      0               ;   r_offset
+                dd      0               ;   r_info
+
+The r_offset field, in the case of an executable, is generally the memory address where the symbol's true value needs to be inserted. (The precise meaning of this field can vary.) The r_info field is another field with two values crammed together, this time an 8-bit value combined with a 24-bit value. The low byte is a number indicating the relocation type, and the high three bytes contain the index of the symbol in the symbol table.
+
+There are quite a number of relocation types for the i386 architecture. There's R_386_32, which indicates a direct insertion of the symbol's value, which is useful for obtaining pointers to objects. There is R_386_PC32, which obtains the symbol's value relative to the address of the relocation. This is much more useful for composing jumps and calls, which is what we want to do. There are also relocations that calculate values relative to various ELF structures, relocations that make individual copies of objects, and so on. Note also that relocations are additive. In other words, they are added to whatever value is already at the offset, rather than just overwriting it. (It may be worth briefly noting that ELF files can have an alternate kind of relocation table, called Elf32_Rela, in which the initial offset value is stored in a third field in the relocation record instead. Since those take up more space without adding any new capabilities, we're going to ignore them.) As we're importing a function address, what we want is R_386_PC32. So let's set the other relocation types to one side.
+
+We should be able to build our relocation table now … wait a minute! We need an empty entry in the first position, right? No? No, apparently not. Okay, never mind.
+
+  %define R_386_PC32      2
+  
+  %define R_INFO(s, t)    (((s) << 8) | (t))
+  
+  reltab:                                               ; Elf32_Rel
+                dd      exit_call                       ;   r_offset
+                dd      R_INFO(1, R_386_PC32)           ;   r_info
+
+For the r_offset field, we have a label that hasn't been placed yet. We'll need to define it when we write the actual code, at the point of the call to the _exit() function. The 1 in the r_info field is the index of our 1 and only symbol in the symbol table.
+
+Okay! Now it looks like it's starting to come together. We've defined enough data for a linker to move from a relocation record to the symbol table entry, and from there to the actual name of the symbol. Maybe now we're ready to take a closer look at what goes into that dynamic section hodgepodge.
+
+The dynamic section has 24 different types of entries. (Yeesh!) Nine of these are marked as mandatory for executables. Let's look at those.
+
+One entry is labelled DT_STRTAB. It provides the address of the string table. We have one of those, so check. There's also a DT_STRSZ, which specifies the size of the string table. We have that too. Next up is DT_SYMTAB, giving the address of the symbol table, and DT_SYMENT, giving the size of a single entry in the symbol table. Check and check. Then there's DT_REL, DT_RELSZ, and DT_RELENT, which specify the address of the relocation table, the size of said table, and the size of a single entry in the table. Got it, got it, got it. So far, so good. The eighth entry type is DT_HASH, which specifies the address of the hash table. Choke. What hash table?! Looks like we have yet another ELF structure to learn about.
+
+Since your average ELF file contains hundreds if not thousands of symbols, ELF files come with a simple hash table to expedite the process of doing lookups. The hash table is simply an array of 32-bit values. The first value in the array specifies the number of buckets in the hash table. The second value in the array specifies the total number of entries in the hash table's chains; this will be the same as the number of entries in the symbol table (including the null entry at the top). After these two values is the array of buckets, which is then followed by the array of chain links.
+
+The ELF specification lays out exactly what hash function to use:
+
+  unsigned long
+  elf_hash(const unsigned char *name)
+  {
+      unsigned long       h = 0, g;
+  
+      while (*name) {
+          h = (h << 4) + *name++;
+          if (g = h & 0xf0000000)
+              h ^= g >> 24;
+          h &= ~g;
+      }
+      return h;
+  }
+
+In the interest of speed, it is a very simple function, using nothing more than addition and bit-shifting. To look up a symbol name in the hash table, a program runs the symbol name through the hash function, and uses the resulting number as an index into the bucket array, modulo the number of buckets. The number stored at that index is the index into the symbol table for a symbol with that hash value. The program then retrieves that symbol's name and compares it with the one it seeks. If it's not the right symbol, the program then uses the same number as an index into the chain array. The value there will be the index for another symbol whose name also hashes to that value. The program tries the new index; if it's still not the right symbol, it uses this latest index on the chain array again. It continues to follow the chain links until it finds the symbol it wants, or until it retrieves a zero value from the chain array, at which point the program knows that no more symbols are present with that hash value. (Since the first chain link always corresponds to the null entry, zero can never be a link to a valid symbol.)
+
+A program that is building a hash table can choose whatever number of buckets it thinks will provide the best coverage with the fewest entries per bucket. Or if — as in our case — size is a concern instead of speed, it can build a table with a single bucket, which every symbol will hash to. In our case, there is only one symbol in our symbol table, so both of these strategies point to the same decision: a hash table with one bucket.
+
+  hashtab:
+                dd      1               ; the number of buckets
+                dd      2               ; the number of symbols
+                dd      1               ; the lone bucket: symbol 1 for _exit
+                dd      0               ; the null symbol table entry
+                dd      0               ; the end of the only chain
+
+The one bucket entry points to our one symbol. There are two chain entries, and both of them are zero because neither of them chain to the other.
+
+We have a hash table. I mean, it's not much of a hash table, but it's valid in the eyes of the ELF specification. Hurrah!
+
+Now, back to the dynamic section mishmash. We now have something to fill in for DT_HASH. But there is one more required entry left. What is it? As it happens, the ninth required entry is DT_NULL, which comes last in the table and marks its end. So that's it for the dynamic section!
+
+Or is it? There's something we're still missing.
+
+At this point, there's still nothing that points to the name of the shared-object library in the string table! Certainly that belongs in the dynamic section, or maybe as some kind of specially marked symbol? Actually, yes, it does belong in the dynamic section, under a DT_NEEDED identifier. DT_NEEDED is one of the optional entries — probably because, unlike the other entries, you can have more than one DT_NEEDED entry. Each one provides a string table offset to the name of a dynamic library, and the order they appear in the table determines the order that they will be searched for symbols. We just need the one, thanks.
+
+(And you may have noticed, by this point, that there is truly nothing in the ELF file that connects a symbol to the library that supplies it. This is not an oversight, and in fact reflects one of the more noteworthy facts about dynamic linking in Unix — an exported symbol is truly global, and a library can usurp another library's symbol definition by getting loaded first. Check out the documentation for the LD_PRELOAD environment variable if you don't already know about it.)
+
+So. Here is our dynamic section, all filled out:
+
+  %define DT_NULL                0
+  %define DT_NEEDED              1
+  %define DT_HASH                4
+  %define DT_STRTAB              5
+  %define DT_SYMTAB              6
+  %define DT_STRSZ              10
+  %define DT_SYMENT             11
+  %define DT_REL                17
+  %define DT_RELSZ              18
+  %define DT_RELENT             19
+  
+  dyntab:
+                dd      DT_STRTAB, strtab
+                dd      DT_STRSZ,  strtabsz
+                dd      DT_SYMTAB, symtab
+                dd      DT_SYMENT, symentsz
+                dd      DT_REL,    reltab
+                dd      DT_RELSZ,  reltabsz
+                dd      DT_RELENT, relentsz
+                dd      DT_HASH,   hashtab
+                dd      DT_NEEDED, libc_name
+                dd      DT_NULL,   0
+
+We need to go back and insert some labels and/or equates for a few of these symbols, but none of these require us to add content to the file that we don't already have.
+
+As we can see now, the dynamic section functions as a kind of information kiosk for the dynamic linker, so it can find everything after it's been loaded into memory. Yes, it's all beginning to make sense.
+
+(You may note that while the relocation table requires three entries, to fully specify its dimensions, the symbol table only requires two. Why isn't there a value that specifies the number of symbols in the symbol table? Because that number is included in the hash table. So that's one reason why the hash table isn't optional.)
+
+So, are we done bloating up our executable with all these new ELF structures? Do we have everything we need to cooperate with the dynamic linker?
+
+Not quite. One question: how does the linker find the dynamic section in the first place?
+
+Answer: The dynamic section requires its own entry in the program segment header table. Remember the program segment header table? We've been getting by with only one program segment for the entire file, but that's not good enough any more. The linker needs to have the dynamic section called out directly with a program segment header table entry. (And if you ask how the dynamic linker finds the program segment header table, I will remind you that the location of the program segment header table is stashed in the ELF header itself. And if you ask how the linker finds the ELF header, go back and review the first tutorial: It's always the very first thing in the ELF file.)
+
+Having a second program header table entry is a bit of a downer, because it means we won't be able to overlap it with the ELF header anymore: The first two bytes of the overlap are, in the ELF header, the number of entries in said table, and that number will now be two instead of one. As a small consolation, though, there will be two p_paddr fields in which we can hide bits of code.
+
+In any case, there's no escaping the need for it, so let's quit dawdling and cobble together a new program header table:
+
+  %define PT_LOAD              1
+  %define PT_DYNAMIC           2
+  
+  %define PF_R                 4
+  %define PF_W                 2
+  %define PF_X                 1
+  
+  phdr:                                                 ; Elf32_Phdr
+                dd      PT_LOAD                         ;   p_type
+                dd      0                               ;   p_offset
+                dd      $$                              ;   p_vaddr
+                dd      $$                              ;   p_paddr
+                dd      filesz                          ;   p_filesz
+                dd      memsz                           ;   p_memsz
+                dd      PF_R | PF_W | PF_X              ;   p_flags
+                dd      0x1000                          ;   p_align
+  
+                dd      PT_DYNAMIC                      ;   p_type
+                dd      dyntab - $$                     ;   p_offset
+                dd      dyntab                          ;   p_vaddr
+                dd      dyntab                          ;   p_paddr
+                dd      dyntabsz                        ;   p_filesz
+                dd      dyntabsz                        ;   p_memsz
+                dd      PF_R | PF_W                     ;   p_flags
+                dd      4                               ;   p_align
+
+I've gone ahead and replaced some of the magic numbers in the old version with named definitions, so we can better see what's going on. The original entry is marked PT_LOAD, meaning that this segment is to be loaded into memory at startup. It will still contain the entire file's contents. (That doesn't let us off the hook of having a separate entry for the dynamic section.) The new entry is marked PT_DYNAMIC, so the linker will have no trouble finding it. (Hey! PT_DYNAMIC has a value of two, so if we put this entry first we could overlap with the ELF header again! But no: The second field in this entry isn't zero, so it won't actually mesh with the end of the ELF header. Dang.) This entry covers just the dynamic section, and is, somewhat surprisingly, typically marked as being writable. (I'm not sure why, but it matters; having a read-only dynamic table will cause your executable to segfault during initialization.) Thus the PT_LOAD entry itself needs to be marked as writable, since it's the one that actually determines the flags that are set for that page of memory.
+
+So now we're done! We're ready to put all these disparate pieces together into a single file.
+
+Well, almost. But not yet.
+
+Here's a question: How does the dynamic linker ever get invoked?
+
+This may come as a bit of a surprise (it certainly did to me), but the dynamic linker does not get handed every executable with a dynamic section by default. Dynamic linking is an opt-in affair, and you must specifically request it.
+
+One of the issues here is that the dynamic linker is just another program, and occasionally changes in the kernel require changes in the linker. In order to maintain binary backwards-compatibility, it can be necessary to have more than one version of the dynamic linker program available. Thus, each and every program must specify which linker they were made to work with. In fact, the full pathname to the dynamic linker has to be embedded within the executable. And not within a string table, mind you. It needs to be involved too early in the process, so as a result it gets its own program header table entry. That's right: we need yet another entry to the program segment header table.
+
+Grumble, grumble. Well, if we must:
+
+  %define PT_INTERP            3
+  
+                dd      PT_INTERP                       ;   p_type
+                dd      interp - $$                     ;   p_offset
+                dd      interp                          ;   p_vaddr
+                dd      interp                          ;   p_paddr
+                dd      interpsz                        ;   p_filesz
+                dd      interpsz                        ;   p_memsz
+                dd      PF_R                            ;   p_flags
+                dd      0                               ;   p_align
+  
+  interp:
+                db      '/lib/ld-linux.so.2', 0
+  interpsz      equ     $ - interp
+
+Why is it called PT_INTERP? Apparently the dynamic linker is being treated as a kind of interpreter. The dynamic linker is handed the program while the execve() system call is still running, and it does its work before execve() hands control over to the new executable. (In a manner of speaking, that is. A good chunk of the activity involved in dynamic linking is typically delayed until a given symbol is actually referenced. This saves time during startup, and can save time overall as well, if a number of the imported symbols don't get used. The dynamic linker arranges for this by having linked symbols call back into itself, at which time the real symbol's location is looked up. We aren't using this feature in our program, though, in the interests of minimizing our size.)
+
+Note that this diminuitive segment only needs to be readable. And because it's a simple string, it has no aligment requirements.
+
+Okay. I think that really is the last of the pieces. Now we're ready to put it all together. Or almost ready … hmm. Do you get the feeling that we've overlooked something?
+
+Oh yeah. The program!
+
+Originally the version of our program that used libc looked like this:
+
+  _start:
+                push    byte 42
+                call    _exit
+
+This time, however, we're importing the _exit symbol ourselves, at runtime. So what needs to go here?
+
+Remember our entry in the relocation table? We put a label there, exit_call, and noted that we would need to place it in the code, at the point where the _exit() function is called. Well, we're at that place now.
+
+So our program should look like this:
+
+  _start:
+                push    byte 42
+  exit_call:    call    $
+
+Or maybe not. A bit of thought should make it clear that this won't work. The exit_call label isn't quite pointing at the call address; instead it's pointing at the call instruction itself. We don't want to overwrite that part. So let's push exit_call forward one byte:
+
+  _start:
+                push    byte 42
+                call    $
+  exit_call     equ     $ - 4
+
+Much better. However, there's still an error here.
+
+The dynamic linker is going to insert the relative address of the _exit() function there. But relative to what? Relative to the address that it's modifying — that is, relative to exit_call. But the x86 call instruction doesn't work relative to that location; it calculates the destination relative to the instruction pointer, which by that time is pointing to the byte after the call instruction. So the value that the dynamic linker will insert there will be off by four bytes.
+
+How do we repair this? Do we have to fixup the fixup? In a way, yes. Remember that I mentioned that relocations are added to whatever value is already embedded in the code, rather than just overwriting it. So we just need to store a value of -4 at exit_call. We could do that this way:
+
+  _start:
+                push    byte 42
+                db      0xE8
+  exit_call:    dd      -4
+
+But writing it like this will also work, and is more clear as to what's going on:
+
+  _start:
+                push    byte 42
+                call    exit_call
+  exit_call     equ     $ - 4
+
+And now … I think we have all the pieces! Finally. Let's put them together and see what we get.
+
+  ; tiny.asm
+  
+  BITS 32
+  
+  %define ET_EXEC       2
+  %define EM_386        3
+  %define EV_CURRENT    1
+  
+  %define PT_LOAD       1
+  %define PT_DYNAMIC    2
+  %define PT_INTERP     3
+  
+  %define PF_X          1
+  %define PF_W          2
+  %define PF_R          4
+  
+  %define STT_FUNC      2
+  
+  %define STB_GLOBAL    1
+  
+  %define R_386_PC32    2
+  
+  %define DT_NULL       0
+  %define DT_NEEDED     1
+  %define DT_HASH       4
+  %define DT_STRTAB     5
+  %define DT_SYMTAB     6
+  %define DT_STRSZ      10
+  %define DT_SYMENT     11
+  %define DT_REL        17
+  %define DT_RELSZ      18
+  %define DT_RELENT     19
+  
+  %define ST_INFO(b, t) (((b) << 4) | (t))
+  %define R_INFO(s, t)  (((s) << 8) | (t))
+  
+  shentsz       equ     0x28
+  
+                org     0x08048000
+  
+  ;; The ELF header
+  
+  ehdr:                                                 ; Elf32_Ehdr
+                db      0x7F, "ELF", 1, 1, 1            ;   e_ident
+        times 9 db      0
+                dw      ET_EXEC                         ;   e_type
+                dw      EM_386                          ;   e_machine
+                dd      EV_CURRENT                      ;   e_version
+                dd      _start                          ;   e_entry
+                dd      phdr - $$                       ;   e_phoff
+                dd      0                               ;   e_shoff
+                dd      0                               ;   e_flags
+                dw      ehdrsz                          ;   e_ehsize
+                dw      phentsz                         ;   e_phentsize
+                dw      3                               ;   e_phnum
+                dw      shentsz                         ;   e_shentsize
+                dw      0                               ;   e_shnum
+                dw      0                               ;   e_shstrndx
+  ehdrsz        equ     $ - ehdr
+  
+  ;; The program segment header table
+  
+  phdr:                                                 ; Elf32_Phdr
+                dd      PT_INTERP                       ;   p_type
+                dd      interp - $$                     ;   p_offset
+                dd      interp                          ;   p_vaddr
+                dd      interp                          ;   p_paddr
+                dd      interpsz                        ;   p_filesz
+                dd      interpsz                        ;   p_memsz
+                dd      PF_R                            ;   p_flags
+                dd      0                               ;   p_align
+  phentsz       equ     $ - phdr
+                dd      PT_LOAD                         ;   p_type
+                dd      0                               ;   p_offset
+                dd      $$                              ;   p_vaddr
+                dd      $$                              ;   p_paddr
+                dd      filesz                          ;   p_filesz
+                dd      memsz                           ;   p_memsz
+                dd      PF_R | PF_W | PF_X              ;   p_flags
+                dd      0x1000                          ;   p_align
+  
+                dd      PT_DYNAMIC                      ;   p_type
+                dd      dyntab - $$                     ;   p_offset
+                dd      dyntab                          ;   p_vaddr
+                dd      dyntab                          ;   p_paddr
+                dd      dyntabsz                        ;   p_filesz
+                dd      dyntabsz                        ;   p_memsz
+                dd      PF_R | PF_W                     ;   p_flags
+                dd      4                               ;   p_align
+  
+  ;; The hash table
+  
+  hashtab:
+                dd      1                               ; no. of buckets
+                dd      2                               ; no. of symbols
+                dd      1                               ; the bucket: symbol #1
+                dd      0, 0                            ; two links, both zero
+  
+  ;; The symbol table
+  
+  symtab:                                               ; Elf32_Sym
+                dd      0                               ;   st_name
+                dd      0                               ;   st_value
+                dd      0                               ;   st_size
+                db      0                               ;   st_info
+                db      0                               ;   st_other
+                dw      0                               ;   st_shndx
+  symentsz      equ     $ - symtab  
+                dd      exit_name                       ;   st_name
+                dd      0                               ;   st_value
+                dd      0                               ;   st_size
+                db      ST_INFO(STB_GLOBAL, STT_FUNC)   ;   st_info
+                db      0                               ;   st_other
+                dw      0                               ;   st_shndx
+  
+  ;; The relocation table
+  
+  reltab:                                               ; Elf32_Rel
+                dd      exit_call                       ;   r_offset
+                dd      R_INFO(1, R_386_PC32)           ;   r_info
+  relentsz      equ     $ - reltab
+  reltabsz      equ     $ - reltab
+  
+  ;; The dynamic section
+  
+  dyntab:
+                dd      DT_STRTAB, strtab
+                dd      DT_STRSZ,  strtabsz
+                dd      DT_SYMTAB, symtab
+                dd      DT_SYMENT, symentsz
+                dd      DT_REL,    reltab
+                dd      DT_RELSZ,  reltabsz
+                dd      DT_RELENT, relentsz
+                dd      DT_HASH,   hashtab
+                dd      DT_NEEDED, libc_name
+                dd      DT_NULL,   0
+  dyntabsz      equ     $ - dyntab
+  
+  ;; The interpreter segment
+  
+  interp:
+                db      '/lib/ld-linux.so.2', 0
+  interpsz      equ     $ - interp
+  
+  ;; The string table
+  
+  strtab:
+                db      0
+  libc_name     equ     $ - strtab
+                db      'libc.so.6', 0
+  exit_name     equ     $ - strtab
+                db      '_exit', 0
+  strtabsz      equ     $ - strtab
+  
+  ;; Our program
+  
+  _start:
+                push    byte 42
+                call    exit_call
+  exit_call     equ     $ - 4
+  
+  ;; End of the file image.
+  
+  filesz        equ     $ - $$
+  memsz         equ     filesz  
+
+Note that I've placed all of the structures at the top of the file, before the strings sections and the program. All ELF structures which contain 32-bit fields (which is basically everything except string tables) need to be dword-aligned in memory, which means they also need to be dword-aligned in the file. The easiest way to ensure that is to move all the alignment-agnostic sections to the end.
+
+When this program is executed, what will happen? (Deep breath.) The kernel will map it into memory, whereupon it will see the entry in the program segment header table marked PT_INTERP. It will hand the image of our process-to-be over to the program named in that segment, which is the dynamic linker. The dynamic linker will refer to the dynamic section (thanks to it also having an entry in the program segment header table) to find the relocation table. The relocation table's one entry tells it to compute a relative address for the first symbol in the symbol table, the location for which is also retrieved from the dynamic section. The first entry in the symbol table provides a position in the string table (and again, the location for the string table comes from the dynamic section) where the symbol's name is stored, namely "_exit". To find that address the dynamic linker starts going down the list of shared-object libraries that our program has requested; this list contains only a single library, namely "libc.so.6". The dynamic linker will now shift its attention to that library's ELF structures instead of ours. It will compute the hash value of "_exit", and consult libc's hash table, symbol table, and string table in order to find an entry for that symbol. (If it failed to find this symbol, it would then try the next library mapped into our process space. Since there are no other such libraries, the dynamic linker would display an error message and quit the process.) The symbol table entry, once found, provides a value for the symbol, which the dynamic linker adjusts to match the address of the shared-object in our process space, and finally stores a relative version of that value at the address specified in our relocation table entry. (Phew.)
+
+Then, when the kernel starts us running at our entry point, our program's call instruction executes, and it actually jumps to the desired _exit routine. Or so we hope, anyway.
+
+Here we go:
+
+  $ nasm -f bin -o a.out tiny.asm
+  $ chmod +x a.out
+  $ ./a.out ; echo $?
+  42
+
+It worked. How about that? We have dynamically linked!
+
+Now let's check on the size of this thing:
+
+  $ wc -c a.out
+      331 a.out
+
+Well, that's considerably larger than 45 bytes. On the other hand, it's quite a lot smaller than the executable created for us by the linker. So, I'd say this still counts as a complete success.
+
+The next question is, of course, can we make this any smaller? However, I'm going to step away from my usual role and tell you up front that there isn't a lot we can do to reduce this. We're playing with the net up, as the saying goes. There aren't any fields in the new ELF structures that permit arbitrary values, so we're not going to be able to overlap things much. And we don't have any optional structures that we can remove and still do dynamic linking. (Which is really to say that I've already omitted any optional structures like the procedure linkage table.)
+
+Still, let's see what we can do.
+
+We're still free to overlap sections, and there is some scope for that. A couple of the sections end in several zero bytes, for starters, which immediately brings the symbol table to mind, as it begins with no less than 16 NULs. The structures ending with the most NULs are the hash table and the dynamic structure — both have 11 NUL bytes at their tails. Let's use the hash table, since it's already placed above the symbol table, and overlap them, like so:
+
+  ;; The hash table and the symbol table, overlapped
+  
+  hashtab:
+                dd      1                               ; no. of buckets
+                dd      2                               ; no. of symbols
+                db      1                               ; the bucket: symbol #1
+                                                        ; two links, both zero
+  symtab:                                               ; Elf32_Sym
+                dd      0                               ;   st_name
+                dd      0                               ;   st_value
+                dd      0                               ;   st_size
+                ; etc.
+
+But this won't quite work, because now the symbol table is no longer dword-aligned. In practice we can only overlap 8 of the 11 bytes:
+
+  ;; The hash table and the symbol table, overlapped
+  
+  hashtab:
+                dd      1                               ; no. of buckets
+                dd      2                               ; no. of symbols
+                dd      1                               ; the bucket: symbol #1
+                                                        ; two links, both zero
+  symtab:                                               ; Elf32_Sym
+                dd      0                               ;   st_name
+                dd      0                               ;   st_value
+                dd      0                               ;   st_size
+                ; etc.
+
+Another trick we can do with structures ending in zeros is to put them at the end of the file. You may recall that the entries in the program segment header table specify both a file size and a memory size (the fields p_filesz and p_memsz). When the memory size is larger than the file size, the loader is required to explicitly make up the difference with NUL bytes.
+
+We can only do this at the end of the file, even though we have three segments, since everything gets loaded in a single segment. (Only the PT_LOAD entry in the table actually causes anything to be copied out of the file and into memory. The PT_INTERP and PT_DYNAMIC entries in the table are really nothing more than pointers.) Since there are no alignment requirements for the ends of structures, we can chop all eleven bytes off the tail of the dynamic structure:
+
+  align 4
+  
+  ;; The dynamic section
+  
+  dyntab:
+                dd      DT_STRTAB, strtab
+                dd      DT_STRSZ,  strtabsz
+                dd      DT_SYMTAB, symtab
+                dd      DT_SYMENT, symentsz
+                dd      DT_REL,    reltab
+                dd      DT_RELSZ,  reltabsz
+                dd      DT_RELENT, relentsz
+                dd      DT_HASH,   hashtab
+                dd      DT_NEEDED
+                db      libc_name
+  
+  dyntabsz      equ     ($ - dyntab) + 11
+  _end          equ     $ + 11
+  
+  ;; End of the file image.
+  
+  filesz        equ     $ - $$
+  memsz         equ     _end - $$
+
+Of course, moving the dynamic section to the end of the file means that we may need to insert a few bytes of padding after the unaligned structures. (Thus the "align 4" directive just before the dynamic section.) But it's still worth doing. Also note that we need to be careful to adjust the values of all affected assembler symbols, so that the missing bytes are still counted as part of the structure.
+
+What about overlapping something with the front of the dynamic section? The nice thing about the dynamic section is that its key-value pairs don't have to be in any particular order; anything can be moved to the front. There are a few possible entries that provide overlapping opportunities, but the one that I want to use is the hardest one to see — the end of the symbol table:
+
+  %define STT_FUNC      2
+  %define STB_GLOBAL    1
+  
+  %define ST_INFO(b, t) (((b) << 4) | (t))
+  
+                dd      exit_name                       ;   st_name
+                dd      0                               ;   st_value
+                dd      0                               ;   st_size
+                db      ST_INFO(STB_GLOBAL, STT_FUNC)   ;   st_info
+                db      0                               ;   st_other
+                dw      0                               ;   st_shndx
+
+The last four bytes of our symbol table represent the value 18. That happens to match up with the value of DT_RELSZ. And so:
+
+                dd      exit_name                       ;   st_name
+                dd      0                               ;   st_value
+                dd      0                               ;   st_size
+                                                        ;   st_info = 18
+                                                        ;   st_other = 0
+                                                        ;   st_shndx = 0
+  dyntab:
+                dd      DT_RELSZ,  reltabsz
+                dd      DT_RELENT, relentsz
+                dd      DT_REL,    reltab
+                ; etc.
+
+Of course, the symbol table is already overlapping on the other side with the hash table, so both of them will get dragged down to the end of the file.
+
+And moving on to the two string sections, we can of course overlap the single NUL at the end of the interpreter string with the one at the start of the string table:
+
+  ;; The interpreter segment and the string table, overlapped
+  
+  interp:
+                db      '/lib/ld-linux.so.2'      ; plus a terminating NUL
+  interpsz      equ     ($ - interp) + 1
+  
+  strtab:
+                db      0
+  libc_name     equ     $ - strtab
+                db      'libc.so.6', 0
+  exit_name     equ     $ - strtab
+                db      '_exit', 0
+  strtabsz      equ     $ - strtab
+
+Looks like we've already run out of things to overlap! Well, not quite. There is one more overlap we can create. The program segment header table contains three entries. The order of these entries is umimportant. We can shuffle them around so that the final field in the table will be the interpreter segment's p_align field. Because this segment has no alignment requirements, the value of this field is zero. However, the ELF specification notes that unaligned segments can be indicated with a value of either zero or one. Since the first field in the hash table is a one, let's use the latter.
+
+  align 4
+  
+  ;; The program segment header table, the hash table, the symbol
+  ;; table, and the dynamic section, overlapped
+  
+  phdr:                                                 ; Elf32_Phdr
+                dd      PT_LOAD                         ;   p_type
+                dd      0                               ;   p_offset
+                dd      $$                              ;   p_vaddr
+                dd      $$                              ;   p_paddr
+                dd      filesz                          ;   p_filesz
+                dd      memsz                           ;   p_memsz
+                dd      PF_R | PF_W | PF_X              ;   p_flags
+                dd      0x1000                          ;   p_align
+  
+                dd      PT_DYNAMIC                      ;   p_type
+                dd      dyntab - $$                     ;   p_offset
+                dd      dyntab                          ;   p_vaddr
+                dd      dyntab                          ;   p_paddr
+                dd      dyntabsz                        ;   p_filesz
+                dd      dyntabsz                        ;   p_memsz
+                dd      PF_R | PF_W                     ;   p_flags
+                dd      4                               ;   p_align
+  
+                dd      PT_INTERP                       ;   p_type
+                dd      interp - $$                     ;   p_offset
+                dd      interp                          ;   p_vaddr
+                dd      interp                          ;   p_paddr
+                dd      interpsz                        ;   p_filesz
+                dd      interpsz                        ;   p_memsz
+                dd      PF_R                            ;   p_flags
+                                                        ;   p_align = 1
+  hashtab:
+                dd      1                               ; no. of buckets
+                dd      2                               ; no. of symbols
+                dd      1                               ; the bucket: symbol #1
+                ; etc.
+
+With these overlaps in place, we can verify that we still have a working executable:
+
+  $ nasm -f bin -o a.out tiny.asm
+  $ chmod +x a.out
+  $ ./a.out ; echo $?
+  42
+  $ wc -c a.out
+      305 a.out
+
+We reclaimed 8 bytes from the hash table, 11 bytes off the end of the dynamic structure, 1 byte from the interpreter segment, 4 bytes off the end of the symbol table, and 4 bytes out of the program segment header table … minus two bytes of padding that needed to be introduced. Our program is now 26 bytes smaller.
+
+There is, of course, one last reduction that we can make, and that is (as before) squeezing the program itself into the ELF structures.
+
+Despite all this new machinery, we don't have any addtional fields that we can cram arbitrary values into. Just our old standby, the p_paddr field in the program segment header table. However, we now have three p_paddr fields we can use. And our program is only two instructions long, so no problem.
+
+  ;; Our program
+  
+  _start:
+                push    byte 42
+                call    exit_call
+  exit_call     equ     $ - 4
+
+Well, there is one problem. The second instruction is five bytes long. We don't have five contiguous bytes we can use.
+
+In the previous essay, we selected a load address with a upper byte that matched an instruction, so we could use part of the p_vaddr field as well. But that won't work this time. The initial byte of the call instruction is 0xE8, and this we can't have a load address above 0x80000000. We could embed 0xE8 as the second-highest byte of the load address, except that what comes after the call instruction is the 32-bit value -4, or 0xFFFFFFFC, which is no better. On top of this, that -4 value is going to be overwritten by the dynamic linker. The ELF spec doesn't explicitly say that you can't alter the p_vaddr field after it's been loaded … but neither does it say that you can. (This feels like one of those things that never occurred to anyone as needing to be explicitly forbidden. Sort of like how the ELF specification doesn't explicitly say that you can't expect your executable to work if you set the hard drive on fire while it's loading.) If we're really trying to play by the rules, then it's probably best to avoid altering ELF structures during runtime.
+
+Is there any other field, anywhere else in the file, where we can squeeze a five-byte call instruction? No, there doesn't seem to be.
+
+Is there another instruction we can use instead of call? Well, we can push a return value onto the stack manually and then jump. But a jump is also five bytes long, so that gets us nothing. (There is also the issue of getting a return value to put onto the stack in the first place. Normally that couldn't be done without a five-byte instruction either. In fact, the usual way of getting a return value is to execute a call to a pop instruction! But this is a special case: Since the _exit() function never returns, we likely could have gotten away with pushing any random value, or even subtracting four from the stack pointer.)
+
+Well, is there another encoding of the call instruction we could use? A "call eax" instruction is only two bytes long, for example. But then we're still stuck with a five-byte instruction to load an address into eax.
+
+Maybe we could use a "call [eax]" instruction? We still need to load eax with an address, of course. But before we were dealing with an address that doesn't exist until the dynamic linker comes along and inserts it. This way, we would be dealing with an address that we choose, one located in our file and known ahead of time. This is a possibility.
+
+The only problem is that we don't have a pointer to anyplace within our file (or anywhere else, for that matter). So we'll need to pick a load address that we can create from scratch using short instructions. After experimenting with the instruction set for a bit, the best valid address I can come up with is 0x01000000, which I can generate like so:
+
+          xor     eax, eax
+          inc     eax
+          bswap   eax
+
+This is still five bytes, but since there are three instructions now, we don't need the five bytes to be contiguous. This would set eax to point to the beginning of the file image in memory. We still need to offset it to where the actual address gets stored, of course:
+
+          call    [byte eax + (exit_call - $$)]
+
+This instruction is three bytes long. We need another two bytes to push the argument, for a grand total of ten bytes. Argh! Once we account for the jumps we need to move from one p_paddr field to the next, we only have eight bytes available to us!
+
+But wait. Our program now has a different encoding:
+
+  00000000 6A2A                push    byte 42
+  00000002 31C0                xor     eax, eax
+  00000004 40                  inc     eax
+  00000005 0FC8                bswap   eax
+  00000007 FF507F              call    [byte eax + 0x7F]
+
+Most of these byte values are below 0x80, providing opportunities for overlap with the p_vaddr field instead. That might give us enough room … except that this whole scheme depends on having a load address of 0x01000000. So much for that idea.
+
+On the other hand, this does suggest a new avenue of attack. Is there a different version of the call instruction that would be more friendly to being embedded in p_vaddr?
+
+Indeed there is: the "call [mem]" instruction is six bytes long, and consists of 0xFF 0x15 followed by a four-byte address. By setting our binary's load address to 0x15FF0000, we could fit the rest of the instruction in the p_paddr field:
+
+  phdr:                                                 ; Elf32_Phdr
+                dd      PT_LOAD                         ;   p_type
+                dd      0                               ;   p_offset
+                dw      0                               ;   p_vaddr
+  part2:        call    [exit_ptr]                      ;   p_paddr
+                dd      filesz                          ;   p_filesz
+                dd      memsz                           ;   p_memsz
+                dd      PF_R | PF_W | PF_X              ;   p_flags
+                dd      0x1000                          ;   p_align
+  
+                dd      PT_DYNAMIC                      ;   p_type
+                dd      dyntab - $$                     ;   p_offset
+                dd      dyntab                          ;   p_vaddr
+  _start:       push    byte 42                         ;   p_paddr
+                jmp     short part2
+                dd      dyntabsz                        ;   p_filesz
+                dd      dyntabsz                        ;   p_memsz
+                dd      PF_R | PF_W                     ;   p_flags
+                dd      4                               ;   p_align
+
+Notice carefully that this version of the call instruction will need to be given an absolute address, instead of the usual call instruction's relative address. This means that we need to change the entry in the relocation table, so that the linker will actually store an absolute address. In other words, we need to use R_386_32 instead of R_386_PC32:
+
+  %define R_386_32    1
+  
+  reltab:                                               ; Elf32_Rel
+                dd      exit_ptr                        ;   r_offset
+                dd      R_INFO(1, R_386_32)             ;   r_info
+
+This also means that the four bytes at exit_ptr need to be initialized to zero, instead of -4. That's actually convenient, because now we can locate those bytes in the zero-initialized bss memory at the end:
+
+  dyntabsz      equ     ($ - dyntab) + 11
+  exit_ptr      equ     $ + 11
+  _end          equ     $ + 15
+  
+  ;; End of the file image.
+  
+  filesz        equ     $ - $$
+  memsz         equ     _end - $$
+
+And with that, I believe we are ready.
+
+Here's the program in its entirety:
+
+  ; tiny.asm
+  
+  BITS 32
+  
+  %define ET_EXEC       2
+  %define EM_386        3
+  %define EV_CURRENT    1
+  
+  %define PT_LOAD       1
+  %define PT_DYNAMIC    2
+  %define PT_INTERP     3
+  
+  %define PF_X          1
+  %define PF_W          2
+  %define PF_R          4
+  
+  %define STT_FUNC      2
+  
+  %define STB_GLOBAL    1
+  
+  %define R_386_32      1
+  
+  %define DT_NULL       0
+  %define DT_NEEDED     1
+  %define DT_HASH       4
+  %define DT_STRTAB     5
+  %define DT_SYMTAB     6
+  %define DT_STRSZ      10
+  %define DT_SYMENT     11
+  %define DT_REL        17
+  %define DT_RELSZ      18
+  %define DT_RELENT     19
+  
+  shentsz       equ     0x28
+  
+                org     0x15FF0000
+  
+  ehdr:                                                 ; Elf32_Ehdr
+                db      0x7F, "ELF", 1, 1, 1            ;   e_ident
+        times 9 db      0
+                dw      ET_EXEC                         ;   e_type
+                dw      EM_386                          ;   e_machine
+                dd      EV_CURRENT                      ;   e_version
+                dd      _start                          ;   e_entry
+                dd      phdr - $$                       ;   e_phoff
+                dd      0                               ;   e_shoff
+                dd      0                               ;   e_flags
+                dw      ehdrsz                          ;   e_ehsize
+                dw      phentsz                         ;   e_phentsize
+                dw      3                               ;   e_phnum
+                dw      shentsz                         ;   e_shentsize
+                dw      0                               ;   e_shnum
+                dw      0                               ;   e_shstrndx
+  ehdrsz        equ     $ - ehdr
+  
+  ;; The interpreter segment
+  
+  interp:       db      '/lib/ld-linux.so.2'
+  
+  interpsz      equ     $ - interp + 1
+  
+  ;; The string table
+  
+  strtab:
+                db      0
+  libc_name     equ     $ - strtab
+                db      'libc.so.6', 0
+  exit_name     equ     $ - strtab
+                db      '_exit', 0
+  strtabsz      equ     $ - strtab
+  
+  align 4
+  
+  ;; The relocation table
+  
+  reltab:                                               ; Elf32_Rel
+                dd      exit_ptr                        ;   r_offset
+                dd      R_INFO(1, R_386_32)             ;   r_info
+  relentsz      equ     $ - reltab
+  reltabsz      equ     $ - reltab
+  
+  ;; The program segment header table, hash table, symbol table,
+  ;; and dynamic section.
+  
+  phdr:                                                 ; Elf32_Phdr
+                dd      PT_LOAD                         ;   p_type
+                dd      0                               ;   p_offset
+                dw      0                               ;   p_vaddr
+  part2:        call    [exit_ptr]                      ;   p_paddr
+                dd      filesz                          ;   p_filesz
+                dd      memsz                           ;   p_memsz
+                dd      PF_R | PF_W | PF_X              ;   p_flags
+                dd      0x1000                          ;   p_align
+  phentsz       equ     $ - phdr
+                dd      PT_DYNAMIC                      ;   p_type
+                dd      dyntab - $$                     ;   p_offset
+                dd      dyntab                          ;   p_vaddr
+  _start:       push    byte 42                         ;   p_paddr
+                jmp     short part2
+                dd      dyntabsz                        ;   p_filesz
+                dd      dyntabsz                        ;   p_memsz
+                dd      PF_R | PF_W                     ;   p_flags
+                dd      4                               ;   p_align
+
+dd PT_INTERP ; p_type dd interp - $$ ; p_offset dd interp ; p_vaddr dd 0 ; p_paddr dd interpsz ; p_filesz dd interpsz ; p_memsz dd PF_R ; p_flags ; p_align = 1 hashtab: dd 1 ; no. of buckets dd 2 ; no. of symbols dd 1 ; the bucket: symbol #1 ; two links, both zero symtab: ; Elf32_Sym dd 0 ; st_name dd 0 ; st_value dd 0 ; st_size db 0 ; st_info db 0 ; st_other dw 0 ; st_shndx symentsz equ $ - symtab dd exit_name ; st_name dd 0 ; st_value dd 0 ; st_size ; st_info = 18 ; st_other = 0 ; st_shndx = 0 ;; The dynamic section dyntab: dd DT_RELSZ, reltabsz dd DT_RELENT, relentsz dd DT_REL, reltab dd DT_STRSZ, strtabsz dd DT_STRTAB, strtab dd DT_SYMENT, symentsz dd DT_SYMTAB, symtab dd DT_HASH, hashtab dd DT_NEEDED db libc_name dyntabsz equ $ - dyntab + 11 exit_ptr equ $ + 11 _end equ $ + 15 ;; End of the file image. filesz equ $ - $$ memsz equ _end - $$
+
+And behold, it works:
+
+  $ nasm -f bin -o a.out tiny.asm
+  $ chmod +x a.out
+  $ ./a.out ; echo $?
+  42
+  $ wc -c a.out
+      297 a.out
+
+This reduction netted us seven bytes, plus one less byte of alignment padding, raising to 34 the grand total of bytes saved from our first working version, and allowing our executable to slip below the 300-byte mark.
+
+Is this the smallest possible size for this program? It might be, but to be honest I don't know. It's a much more complicated executable, and things aren't as clear-cut as they were in the original tutorial. All I can say for certain is that I haven't been able to make it any smaller yet.
+
+ 
+
+(finis)
+
+Tiny
+Software
+Brian Raiter 
