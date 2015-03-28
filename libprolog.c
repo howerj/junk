@@ -6,24 +6,45 @@
  *  @email      howe.r.j.89@gmail.com 
  * 
  *  @todo Replace all exit(-1) with longjmp
+ *
+ *  Program   ::= QueryOrRule | QueryOrRule Program
+ *
+ *  QueryOrRule ::= Query | Rule
+ *  Query       ::= ?- Term .
+ *  Rule        ::= Term . | Term :- Terms . 
+ *  Terms       ::= Term   | Term , Terms
+ *  Term        ::= Number | Variable | AtomName | AtomName(Terms)
+ *                  | [] | [Terms] | [Terms | Term]
+ *                  | print(Term) | nl | eq(Term , Term)
+ *                  | if(Term , Term , Term) | or(Term , Term ) 
+ *                  | not(Term) | call(Term) | once(Term)
+ *  Number      ::= Digit | Digit Number
+ *  Digit       ::= 0 | ... | 9
+ *  AtomName    ::= LowerCase | LowerCase NameChars
+ *  Variable    ::= UpperCase | UpperCase NameChars
+ *  NameChars   ::= NameChar  | NameChar  NameChars
+ *  NameChar    ::= a | ... | z | A | ... | Z | Digit 
  **/
 #include "libprolog.h"
+#include <assert.h>
+#include <ctype.h>
+#include <setjmp.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
-#include <setjmp.h>
-#include <assert.h>
 
 static const char *errorfmt = "( error \"%s%s\" %s %u )\n";
-static const char *initprg  = "";
+static const char *initprg  = " ";
 
 #define PWARN(P,M) fprintf(stderr, errorfmt, (P), (M), __FILE__, __LINE__)
 #define WARN(M)    PWARN("",(M))
+#define ID_MAX     (256u)
 
 struct prolog_obj {         
         FILE *in, *out;    /*file input (if not using string input), output*/
-        int ch, sym, id[256/*arbitrary*/];
+        int ch, sym, ival; /*current char, current symbol, lexed value*/
+        char id[ID_MAX];   /*lexed identifier*/
         uint8_t *sin;      /*string input pointer*/
         size_t slen, sidx; /*string input length and index into buffer*/
         unsigned invalid :1, stringin :1; /*invalidate obj? string input? */
@@ -56,17 +77,17 @@ enum {
         /*each of these symbols has an entry in *words[]*/
         PRINT_SYM, NL_SYM, EQ_SYM, IF_SYM, OR_SYM, NOT_SYM, CALL_SYM, ONCE_SYM,
         /*theses ones do not*/
-        LPAR, RPAR, LSPAR, RSPAR, PERIOD, COMMA, QUERY, ASSIGN, ATOM_ID, VAR_ID, 
-        EOI 
+        LPAR, RPAR, LSPAR, RSPAR, PERIOD, COMMA, QUERY, ASSIGN, ID, VAR, 
+        INT, EOI 
      };
-static char *words[] = { "print","nl","eq","if","or","not","call","once" };
+static char *words[] = {"print","nl","eq","if","or","not","call","once",NULL};
 
 static void next_ch(prolog_obj_t *o) { o->ch = ogetc(o); }
 
 static void next_sym(prolog_obj_t *o)
 { again: switch(o->ch)
         { case ' ': case '\n': next_ch(o); goto again;
-          case EOF: o->sym = EOI; break;
+          case '\0': case EOF: o->sym = EOI; break;
           case '#': comment(o); next_ch(o); goto again;
           case '(': o->sym = LPAR;    next_ch(o); break;
           case ')': o->sym = RPAR;    next_ch(o); break;
@@ -85,12 +106,46 @@ static void next_sym(prolog_obj_t *o)
                     next_ch(o);
                     break;
           default:
-                PWARN(o->id, "synax error"); exit(-1);
+                if(isdigit(o->ch)) { /*integer*/
+                        o->ival = 0;
+                        while(isdigit(o->ch)) {
+                                o->ival = o->ival*10 + (o->ch - '0'); 
+                                next_ch(o);
+                        }
+                        o->sym = INT;
+                } else if(isalpha(o->ch)) { /*variable, atom or keyword*/
+                        size_t i = 0;
+                        while(isalnum(o->ch)) {
+                                if(i > ID_MAX) { 
+                                        PWARN(o->id, "identifier too longer");
+                                        exit(-1);
+                                }
+                                o->id[i++] = o->ch;
+                                next_ch(o);
+                        }
+                        o->id[i] = '\0';
+                        if(isupper(o->id[0])) { /*variable*/
+                                o->sym = VAR;
+                                break;
+                        } else { /*id or keyword*/
+                                o->sym = 0;
+                                while(words[o->sym] && strcmp(words[o->sym], o->id))
+                                        o->sym++;
+                                if(!words[o->sym]) /*id*/
+                                        o->sym = ID;
+                                break;
+                        }
+                } else {
+                        WARN("invalid char"); 
+                        exit(-1);
+                }
+                break;
         }
 }
 
 /* -- Parser --------------------------------------------------------------- */
 /* -- Execution ------------------------------------------------------------ */
+/* -- Interface ------------------------------------------------------------ */
 
 void prolog_seti(prolog_obj_t *o, FILE *in)  
 { assert(o && in);  o->stringin = 0; o->in  = in;  }
@@ -116,8 +171,9 @@ prolog_obj_t *prolog_init(FILE *in, FILE *out)
         if(!in || !out || !(o = calloc(1, sizeof(*o)))) return NULL;
         o->out = out;
         o->ch = ' ';
-
         if(prolog_eval(o, initprg) < 0) return NULL; /*define words*/
+        o->ch = ' ';
+        o->sym = PERIOD;
         prolog_seti(o, in);                  /*set up input after out eval*/
         return o;
 }
@@ -126,6 +182,9 @@ int prolog_run(prolog_obj_t *o)
 {       
         if(!o || o->invalid) return WARN("invalid obj"), -1;
         if(setjmp(o->exception)) return -(o->invalid = 1); /*setup handler*/
+
+        while(o->sym != EOI)
+                next_sym(o), printf("%d\n", o->sym);
 
         return 0;
 }
