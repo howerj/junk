@@ -4,8 +4,8 @@
  *  @copyright  Copyright 2015 Richard James Howe.
  *  @license    LGPL v2.1 or later version
  *  @email      howe.r.j.89@gmail.com 
- * 
- *  @todo Replace all exit(-1) with longjmp
+ *
+ *  Grammar of this prolog: 
  *
  *  Program   ::= QueryOrRule | QueryOrRule Program
  *
@@ -19,11 +19,11 @@
  *                  | if(Term , Term , Term) | or(Term , Term ) 
  *                  | not(Term) | call(Term) | once(Term)
  *  Number      ::= Digit | Digit Number
- *  Digit       ::= 0 | ... | 9
  *  AtomName    ::= LowerCase | LowerCase NameChars
  *  Variable    ::= UpperCase | UpperCase NameChars
  *  NameChars   ::= NameChar  | NameChar  NameChars
  *  NameChar    ::= a | ... | z | A | ... | Z | Digit 
+ *  Digit       ::= 0 | ... | 9
  **/
 #include "libprolog.h"
 #include <assert.h>
@@ -34,10 +34,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const char *errorfmt = "( error \"%s%s\" %s %u )\n";
+static const char *errorfmt = "( error \"%s%s\" \"%s:%u\" %zu )\n";
 static const char *initprg  = " ";
 
-#define PWARN(P,M) fprintf(stderr, errorfmt, (P), (M), __FILE__, __LINE__)
+#define PWARN(P,M) fprintf(stderr,errorfmt,(P),(M),__FILE__,__LINE__,o->lc)
 #define WARN(M)    PWARN("",(M))
 #define ID_MAX     (256u)
 
@@ -47,6 +47,7 @@ struct prolog_obj {
         char id[ID_MAX];   /*lexed identifier*/
         uint8_t *sin;      /*string input pointer*/
         size_t slen, sidx; /*string input length and index into buffer*/
+        size_t lc;         /*number of new lines encountered*/
         unsigned invalid :1, stringin :1; /*invalidate obj? string input? */
         jmp_buf exception; /*jump here on exception*/
 };
@@ -77,7 +78,7 @@ enum {
         /*each of these symbols has an entry in *words[]*/
         PRINT_SYM, NL_SYM, EQ_SYM, IF_SYM, OR_SYM, NOT_SYM, CALL_SYM, ONCE_SYM,
         /*theses ones do not*/
-        LPAR, RPAR, LSPAR, RSPAR, PERIOD, COMMA, QUERY, ASSIGN, ID, VAR, 
+        LPAR, RPAR, LSPAR, RSPAR, PERIOD, COMMA, QUERY, ASSIGN, ID, VARLEX, 
         INT, EOI 
      };
 static char *words[] = {"print","nl","eq","if","or","not","call","once",NULL};
@@ -86,7 +87,8 @@ static void next_ch(prolog_obj_t *o) { o->ch = ogetc(o); }
 
 static void next_sym(prolog_obj_t *o)
 { again: switch(o->ch)
-        { case ' ': case '\n': next_ch(o); goto again;
+        { case ' ': case '\t': next_ch(o); goto again;
+          case '\n': o->lc++; next_ch(o); goto again;
           case '\0': case EOF: o->sym = EOI; break;
           case '#': comment(o); next_ch(o); goto again;
           case '(': o->sym = LPAR;    next_ch(o); break;
@@ -96,12 +98,18 @@ static void next_sym(prolog_obj_t *o)
           case '.': o->sym = PERIOD;  next_ch(o); break;
           case ',': o->sym = COMMA;   next_ch(o); break;
           case '?': next_ch(o); 
-                    if(o->ch != '-') { WARN("expected '-'."); exit(-1);}
+                    if(o->ch != '-') { 
+                            WARN("expected '-'"); 
+                            longjmp(o->exception, 1);
+                    }
                     o->sym = QUERY;
                     next_ch(o);
                     break;
           case ':': next_ch(o); 
-                    if(o->ch != '-') { WARN("expected '-'."); exit(-1);}
+                    if(o->ch != '-') { 
+                           WARN("expected '-'"); 
+                           longjmp(o->exception, 1);
+                    }
                     o->sym = ASSIGN;
                     next_ch(o);
                     break;
@@ -125,7 +133,7 @@ static void next_sym(prolog_obj_t *o)
                         }
                         o->id[i] = '\0';
                         if(isupper(o->id[0])) { /*variable*/
-                                o->sym = VAR;
+                                o->sym = VARLEX;
                                 break;
                         } else { /*id or keyword*/
                                 o->sym = 0;
@@ -144,11 +152,80 @@ static void next_sym(prolog_obj_t *o)
 }
 
 /* -- Parser --------------------------------------------------------------- */
+
+enum { TERMS, TERM, RULE, PQUERY, QUERYORRULE, PROG };
+
+struct node { int type; struct node *o1, *o2, *o3; int ival; };
+typedef struct node node;
+
+static node *new_node(prolog_obj_t *o, int type)
+{       node *x = calloc(1, sizeof(node));
+        if(!x) { WARN("allocation failed"); longjmp(o->exception, 1); }
+        x->type = type;
+        printf("%d\n", type);
+        return x;
+}
+
+static node *terms(prolog_obj_t *o)
+{       node *x = new_node(o, TERMS);
+        return x;
+}
+
+static node *term(prolog_obj_t *o)
+{       node *x = new_node(o, TERM);
+        return x;
+}
+
+static node *rule(prolog_obj_t *o)
+{       node *x = new_node(o, RULE);
+        x->o1 = term(o);
+        next_sym(o);
+        if(o->sym == PERIOD)
+                return x;
+        if(o->sym == ASSIGN) {
+                next_sym(o);
+                x->o2 = terms(o);
+                next_sym(o);
+                if(o->sym != PERIOD) {
+                        WARN("expected period"); 
+                        longjmp(o->exception, 1);
+                }
+        }
+        return x;
+}
+
+static node *pquery(prolog_obj_t *o)
+{       node *x = new_node(o, PQUERY);
+        return x;
+}
+
+static node *queryorrule(prolog_obj_t *o)
+{       node *x = new_node(o, QUERYORRULE);
+        if(o->sym == QUERY) {
+                next_sym(o);
+                x->o1 = pquery(o);
+        } else {
+                x->o1 = rule(o);
+        }
+        return x;
+}
+
+static node *program(prolog_obj_t *o)
+{       node *x = new_node(o, PROG);
+        next_sym(o); 
+        x->o1 = queryorrule(o); 
+        if(o->sym != EOI) {
+                WARN("expected EOI");
+                longjmp(o->exception, 1);
+        }
+        return x;
+}
+
 /* -- Execution ------------------------------------------------------------ */
 /* -- Interface ------------------------------------------------------------ */
 
 void prolog_seti(prolog_obj_t *o, FILE *in)  
-{ assert(o && in);  o->stringin = 0; o->in  = in;  }
+{ assert(o && in);  o->stringin = 0; o->lc = 1; o->in  = in;  }
 
 void prolog_seto(prolog_obj_t *o, FILE *out) 
 { assert(o && out); o->stringin = 0; o->out = out; }
@@ -158,6 +235,7 @@ void prolog_sets(prolog_obj_t *o, const char *s)
         o->sidx = 0;             /*sidx == current character in string*/
         o->slen = strlen(s) + 1; /*slen == actual string len*/
         o->stringin = 1;         /*read from string not a file handle*/
+        o->lc = 1;               /*linecount*/
         o->sin = (uint8_t *)s;
 }
 
@@ -183,8 +261,10 @@ int prolog_run(prolog_obj_t *o)
         if(!o || o->invalid) return WARN("invalid obj"), -1;
         if(setjmp(o->exception)) return -(o->invalid = 1); /*setup handler*/
 
+        program(o);
+        /*
         while(o->sym != EOI)
-                next_sym(o), printf("%d\n", o->sym);
+                next_sym(o), printf("%d\n", o->sym);*/
 
         return 0;
 }
