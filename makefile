@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -Wextra
+CFLAGS=-Wall -Wextra -g
 TARGET=prolog
 .PHONY: all clean
 all: $(TARGET)

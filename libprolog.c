@@ -39,6 +39,7 @@ static const char *initprg  = " ";
 
 #define PWARN(P,M) fprintf(stderr,errorfmt,(P),(M),__FILE__,__LINE__,o->lc)
 #define WARN(M)    PWARN("",(M))
+#define FAIL(O,M)  do { WARN((M)); longjmp((O)->exception, 1); } while(0);
 #define ID_MAX     (256u)
 
 struct prolog_obj {         
@@ -76,10 +77,12 @@ static int comment(prolog_obj_t *o)
 
 enum { 
         /*each of these symbols has an entry in *words[]*/
-        PRINT_SYM, NL_SYM, EQ_SYM, IF_SYM, OR_SYM, NOT_SYM, CALL_SYM, ONCE_SYM,
+        PRINT_SYM, NL_SYM,  EQ_SYM,   IF_SYM, 
+        OR_SYM,    NOT_SYM, CALL_SYM, ONCE_SYM,
         /*theses ones do not*/
-        LPAR, RPAR, LSPAR, RSPAR, PERIOD, COMMA, QUERY, ASSIGN, ID, VARLEX, 
-        INT, EOI 
+        LPAR,   RPAR,   LSPAR, RSPAR, 
+        PERIOD, COMMA,  QUERY, ASSIGN, 
+        ID,     VARLEX, INT,   EOI 
      };
 static char *words[] = {"print","nl","eq","if","or","not","call","once",NULL};
 
@@ -98,18 +101,12 @@ static void next_sym(prolog_obj_t *o)
           case '.': o->sym = PERIOD;  next_ch(o); break;
           case ',': o->sym = COMMA;   next_ch(o); break;
           case '?': next_ch(o); 
-                    if(o->ch != '-') { 
-                            WARN("expected '-'"); 
-                            longjmp(o->exception, 1);
-                    }
+                    if(o->ch != '-') FAIL(o,"expected '-'"); 
                     o->sym = QUERY;
                     next_ch(o);
                     break;
           case ':': next_ch(o); 
-                    if(o->ch != '-') { 
-                           WARN("expected '-'"); 
-                           longjmp(o->exception, 1);
-                    }
+                    if(o->ch != '-') FAIL(o, "expected '-'"); 
                     o->sym = ASSIGN;
                     next_ch(o);
                     break;
@@ -124,10 +121,7 @@ static void next_sym(prolog_obj_t *o)
                 } else if(isalpha(o->ch)) { /*variable, atom or keyword*/
                         size_t i = 0;
                         while(isalnum(o->ch)) {
-                                if(i > ID_MAX) { 
-                                        PWARN(o->id, "identifier too longer");
-                                        exit(-1);
-                                }
+                                if(i > ID_MAX) FAIL(o, "identifier too longer");
                                 o->id[i++] = o->ch;
                                 next_ch(o);
                         }
@@ -144,8 +138,7 @@ static void next_sym(prolog_obj_t *o)
                                 break;
                         }
                 } else {
-                        WARN("invalid char"); 
-                        exit(-1);
+                        FAIL(o, "invalid char"); 
                 }
                 break;
         }
@@ -155,69 +148,87 @@ static void next_sym(prolog_obj_t *o)
 
 enum { TERMS, TERM, RULE, PQUERY, QUERYORRULE, PROG };
 
+#define PDEBUG(NUM,NAME) fprintf(stderr, "( parse %d %s )\n", (NUM), (NAME));
+
 struct node { int type; struct node *o1, *o2, *o3; int ival; };
 typedef struct node node;
 
+static node *term(prolog_obj_t *o);
+
 static node *new_node(prolog_obj_t *o, int type)
 {       node *x = calloc(1, sizeof(node));
-        if(!x) { WARN("allocation failed"); longjmp(o->exception, 1); }
+        if(!x) FAIL(o, "allocation failed"); 
         x->type = type;
-        printf("%d\n", type);
         return x;
 }
 
+
 static node *terms(prolog_obj_t *o)
-{       node *x = new_node(o, TERMS);
+{       node *x = new_node(o, TERMS), *t;
+        PDEBUG(x->type, "terms");
+        t = x;
+        while(o->sym != EOI && o->sym != PERIOD){
+                t->o2 = term(o);
+                t = t->o2;
+                next_sym(o);
+        }
         return x;
 }
 
 static node *term(prolog_obj_t *o)
 {       node *x = new_node(o, TERM);
+        PDEBUG(x->type, "term");
+        next_sym(o);
         return x;
 }
 
 static node *rule(prolog_obj_t *o)
 {       node *x = new_node(o, RULE);
-        x->o1 = term(o);
-        next_sym(o);
+        PDEBUG(x->type, "rule");
         if(o->sym == PERIOD)
                 return x;
-        if(o->sym == ASSIGN) {
+        x->o1 = term(o);
+        if(o->sym == PERIOD)
+                return x;
+        if(o->sym == ASSIGN) { 
                 next_sym(o);
                 x->o2 = terms(o);
-                next_sym(o);
-                if(o->sym != PERIOD) {
-                        WARN("expected period"); 
-                        longjmp(o->exception, 1);
-                }
+                if(o->sym != PERIOD) 
+                        FAIL(o, "expected '.'");
+                return x;
         }
+        FAIL(o, "expected ':-' or '.'");
         return x;
 }
 
 static node *pquery(prolog_obj_t *o)
 {       node *x = new_node(o, PQUERY);
+        PDEBUG(x->type, "pquery");
         return x;
 }
 
 static node *queryorrule(prolog_obj_t *o)
 {       node *x = new_node(o, QUERYORRULE);
-        if(o->sym == QUERY) {
+        PDEBUG(x->type, "queryorrule");
+        while(o->sym != EOI){
+                if(o->sym == QUERY) {
+                        next_sym(o);
+                        x->o1 = pquery(o);
+                } else {
+                        x->o1 = rule(o);
+                }
                 next_sym(o);
-                x->o1 = pquery(o);
-        } else {
-                x->o1 = rule(o);
         }
         return x;
 }
 
 static node *program(prolog_obj_t *o)
 {       node *x = new_node(o, PROG);
+        PDEBUG(x->type, "program");
         next_sym(o); 
         x->o1 = queryorrule(o); 
-        if(o->sym != EOI) {
-                WARN("expected EOI");
-                longjmp(o->exception, 1);
-        }
+        if(o->sym != EOI)
+                FAIL(o, "expected EOI");
         return x;
 }
 
