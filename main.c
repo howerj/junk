@@ -1,17 +1,30 @@
 #include "mips.h"
 #include "util.h"
 #include <stdio.h>
+#include <signal.h>
 #include <stdlib.h>
+
 #include <pthread.h>
 #include <termios.h>
 #include <unistd.h>
 
 pthread_mutex_t emu_mutex;
+struct termios oldtermios, newtermios;
+
+void restoreTermAtExit(void)
+{/*XXX check*/
+        tcsetattr(STDIN_FILENO, TCSANOW, &oldtermios);
+}
+
+void restoreTermAtSignal(int sig)
+{/*XXX checkme*/UNUSED(sig);
+        restoreTermAtExit();
+        abort();
+}
 
 int ttyraw(void)
 {
         int fd = STDIN_FILENO;
-        struct termios oldtermios;
         /* Set terminal mode as follows:
            Noncanonical mode - turn off ICANON.
            Turn off signal-generation (ISIG)
@@ -26,7 +39,6 @@ int ttyraw(void)
            Disable parity checking (PARENB).
            Disable any implementation-dependent output processing (OPOST).
            One byte at a time input (MIN=1, TIME=0). */
-        struct termios newtermios;
         if (tcgetattr(fd, &oldtermios) < 0)
                 return 1;
         newtermios = oldtermios;
@@ -66,6 +78,9 @@ int ttyraw(void)
         /* You tell me why TCSAFLUSH. */
         if (tcsetattr(fd, TCSAFLUSH, &newtermios) < 0)
                 return -1;
+
+        atexit(restoreTermAtExit);
+
         return 0;
 }
 
@@ -121,7 +136,6 @@ void *runEmulator(void *p)
 
 int main(int argc, char *argv[])
 {
-
         pthread_t emu_thread;
 
         if (pthread_mutex_init(&emu_mutex, NULL)) {
@@ -130,26 +144,23 @@ int main(int argc, char *argv[])
         }
 
         if (argc < 2) {
-                printf("Usage: %s image.srec\n", argv[0]);
+                printf("usage: %s image.srec\n", argv[0]);
                 return 1;
         }
 
         Mips *emu = new_mips(64 * 1024 * 1024);
 
-        if (!emu) {
-                puts("allocating emu failed.");
-                return 1;
-        }
+        if (!emu) 
+                FATAL("allocating emu failed.");
 
-        if (loadSrecFromFile_mips(emu, argv[1]) != 0) {
-                puts("failed loading srec");
-                return 1;
-        }
+        if (loadSrecFromFile_mips(emu, argv[1]) != 0)
+                FATAL("failed loading srec");
 
-        if (ttyraw()) {
-                puts("failed to configure raw mode");
-                return 1;
-        }
+        if (ttyraw())
+                FATAL("failed to configure raw mode");
+
+        if(signal(SIGTERM,restoreTermAtSignal))
+                FATAL("Installation of signal handler failed.");
 
         if (pthread_create(&emu_thread, NULL, runEmulator, emu)) {
                 puts("creating emulator thread failed!");
@@ -157,21 +168,17 @@ int main(int argc, char *argv[])
         }
 
         while (1) {
-                int c = getchar();
-                if (c == EOF) {
-                        exit(1);
-                }
+                int c;
+                if ((c = getchar()) == EOF)
+                        return 1;
 
-                if (pthread_mutex_lock(&emu_mutex)) {
-                        puts("mutex failed lock, exiting");
-                        exit(1);
-                }
+                if (pthread_mutex_lock(&emu_mutex))
+                        FATAL("mutex failed lock, exiting");
+
                 uart_RecieveChar(emu, c);
-                if (pthread_mutex_unlock(&emu_mutex)) {
-                        puts("mutex failed unlock, exiting");
-                        exit(1);
-                }
-        }
 
+                if (pthread_mutex_unlock(&emu_mutex))
+                        FATAL("mutex failed unlock, exiting");
+        }
         return 0;
 }

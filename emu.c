@@ -114,10 +114,7 @@ static uint32_t isKernelMode(Mips * emu)
 
 /*tlb lookup return codes*/
 
-#define TLBRET_MATCH 0
-#define TLBRET_NOMATCH 1
-#define TLBRET_DIRTY 2
-#define TLBRET_INVALID 3
+enum tblReturnCodes { TLBRET_MATCH, TLBRET_NOMATCH, TLBRET_DIRTY, TLBRET_INVALID };
 
 /*horrible but deterministic fake rand for testing*/
 uint32_t counter = 0;
@@ -210,31 +207,26 @@ static int translateAddress(Mips * emu, uint32_t vaddr, uint32_t * paddr_out, in
                 } else {
                         *paddr_out = vaddr;
                         FATAL("translateAddress: unhandled exception");
-                        return 1;
                 }
-
         }
 
-        puts("unreachable.");
+        FATAL("unreachable.");
         return 1;
 }
 
 static uint32_t readVirtWord(Mips * emu, uint32_t addr)
 {
         uint32_t paddr;
-        int err = translateAddress(emu, addr, &paddr, 0);
-        if (err) {
+        if(translateAddress(emu, addr, &paddr, 0))
                 return 0;
-        }
 
-        if (paddr % 4 != 0) {
+        if (paddr % 4) {
                 printf("Unhandled alignment error reading addr %08x\n", addr);
                 exit(1);
         }
 
-        if (paddr >= UARTBASE && paddr <= UARTBASE + UARTSIZE) {
+        if ((paddr >= UARTBASE) && (paddr <= (UARTBASE + UARTSIZE)))
                 return uart_read(emu, paddr - UARTBASE);
-        }
 
         if (paddr >= emu->pmemsz) {
                 printf("unhandled bus error at pc: %08x reading paddr: %08x\n", emu->pc, paddr);
@@ -247,12 +239,10 @@ static uint32_t readVirtWord(Mips * emu, uint32_t addr)
 static void writeVirtWord(Mips * emu, uint32_t addr, uint32_t val)
 {
         uint32_t paddr;
-        int err = translateAddress(emu, addr, &paddr, 1);
-        if (err) {
+        if(translateAddress(emu, addr, &paddr, 1))
                 return;
-        }
 
-        if (paddr % 4 != 0) {
+        if (paddr % 4) {
                 printf("Unhandled alignment error reading addr %08x\n", addr);
                 exit(1);
         }
@@ -274,37 +264,34 @@ static void writeVirtWord(Mips * emu, uint32_t addr, uint32_t val)
 
 static uint8_t readVirtByte(Mips * emu, uint32_t addr)
 {
-        uint32_t paddr;
-        int err = translateAddress(emu, addr, &paddr, 0);
-        if (err) {
+        unsigned offset;
+        uint32_t paddr, word, shamt, mask;
+        if (translateAddress(emu, addr, &paddr, 0))
                 return 0;
-        }
 
-        if (paddr >= UARTBASE && paddr <= UARTBASE + UARTSIZE) {
+        if (paddr >= UARTBASE && paddr <= UARTBASE + UARTSIZE)
                 return uart_readb(emu, paddr - UARTBASE);
-        }
 
-        unsigned int offset = paddr & 3;
+        offset = paddr & 3;
 
         if (paddr >= emu->pmemsz) {
                 printf("unhandled bus error paddr: %08x\n", paddr);
                 exit(1);
         }
 
-        uint32_t word = emu->mem[(paddr & (~0x3)) / 4];
-        uint32_t shamt = 8 * (3 - offset);
-        uint32_t mask = 0xff << shamt;
-        uint8_t b = (word & mask) >> shamt;
-        return b;
+        word = emu->mem[(paddr & (~0x3)) / 4];
+        shamt = 8 * (3 - offset);
+        mask = 0xff << shamt;
+        return  (word & mask) >> shamt;
 }
 
 static void writeVirtByte(Mips * emu, uint32_t addr, uint8_t val)
 {
-        uint32_t paddr;
-        int err = translateAddress(emu, addr, &paddr, 1);
-        if (err) {
+        unsigned offset, shamt;
+        uint32_t paddr, baseaddr, word, clearmask, valmask;
+
+        if(translateAddress(emu, addr, &paddr, 1))
                 return;
-        }
 
         if (paddr >= UARTBASE && paddr <= UARTBASE + UARTSIZE) {
                 uart_writeb(emu, paddr - UARTBASE, val);
@@ -321,12 +308,12 @@ static void writeVirtByte(Mips * emu, uint32_t addr, uint8_t val)
                 exit(1);
         }
 
-        unsigned int offset = paddr & 3;
-        uint32_t baseaddr = paddr & (~0x3);
-        uint32_t word = emu->mem[baseaddr / 4];
-        unsigned int shamt = 8 * (3 - offset);
-        uint32_t clearmask = ~(0xff << shamt);
-        uint32_t valmask = (val << shamt);
+        offset = paddr & 3;
+        baseaddr = paddr & (~0x3);
+        word = emu->mem[baseaddr / 4];
+        shamt = 8 * (3 - offset);
+        clearmask = ~(0xff << shamt);
+        valmask = (val << shamt);
         word = (word & clearmask);
         word = (word | valmask);
         emu->mem[baseaddr / 4] = word;
@@ -352,11 +339,10 @@ static void handleException(Mips * emu, int inDelaySlot)
                 if (exccode == EXC_TLBL || exccode == EXC_TLBS) {
                         /*printf("tlb exception %x\n",emu->CP0_Epc);*/
                         /*XXX this seems inverted? bug in also qemu? test with these cases reversed after booting.*/
-                        if (!emu->tlb.exceptionWasNoMatch) {
+                        if (!emu->tlb.exceptionWasNoMatch)
                                 offset = 0x180;
-                        } else {
+                        else 
                                 offset = 0;
-                        }
                 } else if ((exccode == EXC_Int) && ((emu->CP0_Cause & (1 << 23)) != 0)) {
                         offset = 0x200;
                 } else {
@@ -406,6 +392,8 @@ static int handleInterrupts(Mips * emu)
 
 void step_mips(Mips * emu)
 {
+        int startInDelaySlot;
+        uint32_t opcode;
         if (emu->shutdown)
                 return;
 
@@ -424,9 +412,8 @@ void step_mips(Mips * emu)
 
         /* end timer code */
 
-        int startInDelaySlot = emu->inDelaySlot;
-
-        uint32_t opcode = readVirtWord(emu, emu->pc);
+        startInDelaySlot = emu->inDelaySlot;
+        opcode = readVirtWord(emu, emu->pc);
 
         if (emu->exceptionOccured) {    /*instruction fetch failed*/
                 handleException(emu, startInDelaySlot);
@@ -508,28 +495,16 @@ static void op_swl(Mips * emu, uint32_t op)
         uint32_t addr = ((int32_t) getRs(emu, op) + c);
         uint32_t rtVal = getRt(emu, op);
         uint32_t wordVal = readVirtWord(emu, addr & (~3));
-        if (emu->exceptionOccured) {
-                return;
-        }
         uint32_t offset = addr & 3;
         uint32_t result;
+        if (emu->exceptionOccured)
+                return;
 
         switch (offset) {
-        case 0:
-                result = rtVal;
-                break;
-
-        case 1:
-                result = (wordVal & 0xff000000) | ((rtVal >> 8) & 0xffffff);
-                break;
-
-        case 2:
-                result = (wordVal & 0xffff0000) | ((rtVal >> 16) & 0xffff);
-                break;
-
-        case 3:
-                result = (wordVal & 0xffffff00) | ((rtVal >> 24) & 0xff);
-                break;
+        case 0: result = rtVal;                                              break;
+        case 1: result = (wordVal & 0xff000000) | ((rtVal >> 8) & 0xffffff); break;
+        case 2: result = (wordVal & 0xffff0000) | ((rtVal >> 16) & 0xffff);  break;
+        case 3: result = (wordVal & 0xffffff00) | ((rtVal >> 24) & 0xff);    break;
         }
 
         writeVirtWord(emu, addr & (~3), result);
@@ -541,25 +516,17 @@ static void op_lwl(Mips * emu, uint32_t op)
         uint32_t addr = (int32_t) getRs(emu, op) + c;
         uint32_t rtVal = getRt(emu, op);
         uint32_t wordVal = readVirtWord(emu, addr & (~3));
-        if (emu->exceptionOccured) {
-                return;
-        }
         uint32_t offset = addr % 4;
         uint32_t result;
+        if (emu->exceptionOccured) { /*from readVirtWord*/
+                return;
+        }
 
         switch (offset) {
-        case 0:
-                result = wordVal;
-                break;
-        case 1:
-                result = ((wordVal << 8) | (rtVal & 0xff));
-                break;
-        case 2:
-                result = ((wordVal << 16) | (rtVal & 0xffff));
-                break;
-        case 3:
-                result = ((wordVal << 24) | (rtVal & 0xffffff));
-                break;
+        case 0: result = wordVal;                                break;
+        case 1: result = ((wordVal << 8)  | (rtVal & 0xff));     break;
+        case 2: result = ((wordVal << 16) | (rtVal & 0xffff));   break;
+        case 3: result = ((wordVal << 24) | (rtVal & 0xffffff)); break;
         }
 
         setRt(emu, op, result);
@@ -568,11 +535,10 @@ static void op_lwl(Mips * emu, uint32_t op)
 static void op_bne(Mips * emu, uint32_t op)
 {
         int32_t offset = sext18(getImm(op) * 4);
-        if (getRs(emu, op) != getRt(emu, op)) {
+        if (getRs(emu, op) != getRt(emu, op))
                 emu->delaypc = (int32_t) (emu->pc + 4) + offset;
-        } else {
+        else 
                 emu->delaypc = emu->pc + 8;
-        }
         emu->inDelaySlot = 1;
 }
 
@@ -651,9 +617,8 @@ static void op_lbu(Mips * emu, uint32_t op)
 {
         uint32_t addr = ((int32_t) getRs(emu, op) + (int16_t) getImm(op));
         uint32_t v = readVirtByte(emu, addr);
-        if (emu->exceptionOccured) {
+        if (emu->exceptionOccured)
                 return;
-        }
         setRt(emu, op, v);
 }
 
@@ -662,9 +627,8 @@ static void op_lw(Mips * emu, uint32_t op)
         int16_t offset = getImm(op);
         uint32_t addr = ((int32_t) getRs(emu, op) + offset);
         uint32_t v = readVirtWord(emu, addr);
-        if (emu->exceptionOccured) {
+        if (emu->exceptionOccured)
                 return;
-        }
         setRt(emu, op, v);
 }
 
@@ -683,9 +647,8 @@ static void op_sh(Mips * emu, uint32_t op)
         uint8_t vlo = getRt(emu, op) & 0xff;
         uint8_t vhi = (getRt(emu, op) & 0xff00) >> 8;
         writeVirtByte(emu, addr, vhi);
-        if (emu->exceptionOccured) {
+        if (emu->exceptionOccured)
                 return;
-        }
         writeVirtByte(emu, addr + 1, vlo);
 }
 
@@ -693,22 +656,20 @@ static void op_slti(Mips * emu, uint32_t op)
 {
         int32_t rs = getRs(emu, op);
         int32_t c = (int16_t) getImm(op);
-        if (rs < c) {
+        if (rs < c)
                 setRt(emu, op, 1);
-        } else {
+        else
                 setRt(emu, op, 0);
-        }
 }
 
 static void op_sltiu(Mips * emu, uint32_t op)
 {
         uint32_t rs = getRs(emu, op);
         uint32_t c = (uint32_t) (int32_t) (int16_t) getImm(op);
-        if (rs < c) {
+        if (rs < c)
                 setRt(emu, op, 1);
-        } else {
+        else
                 setRt(emu, op, 0);
-        }
 }
 
 static void op_addiu(Mips * emu, uint32_t op)
@@ -735,28 +696,17 @@ static void op_swr(Mips * emu, uint32_t op)
         uint32_t addr = (int32_t) getRs(emu, op) + c;
         uint32_t rtVal = getRt(emu, op);
         uint32_t wordVal = readVirtWord(emu, addr & (~3));
-        if (emu->exceptionOccured) {
-                return;
-        }
         uint32_t offset = addr & 3;
         uint32_t result;
+        if (emu->exceptionOccured) { /*from readVirtWord*/
+                return;
+        }
 
         switch (offset) {
-        case 3:
-                result = rtVal;
-                break;
-
-        case 2:
-                result = ((rtVal << 8) & 0xffffff00) | (wordVal & 0xff);
-                break;
-
-        case 1:
-                result = ((rtVal << 16) & 0xffff0000) | (wordVal & 0xffff);
-                break;
-
-        case 0:
-                result = ((rtVal << 24) & 0xff000000) | (wordVal & 0xffffff);
-                break;
+        case 3: result = rtVal;                                                 break;
+        case 2: result = ((rtVal << 8) & 0xffffff00) | (wordVal & 0xff);        break;
+        case 1: result = ((rtVal << 16) & 0xffff0000) | (wordVal & 0xffff);     break;
+        case 0: result = ((rtVal << 24) & 0xff000000) | (wordVal & 0xffffff);   break;
         }
         writeVirtWord(emu, addr & (~3), result);
 }
@@ -770,16 +720,15 @@ static void op_sw(Mips * emu, uint32_t op)
 
 static void op_lh(Mips * emu, uint32_t op)
 {
-        uint32_t addr = (int32_t) getRs(emu, op) + (int16_t) getImm(op);
-        uint8_t vlo = readVirtByte(emu, addr + 1);
-        if (emu->exceptionOccured) {
+        uint32_t v, addr = (int32_t) getRs(emu, op) + (int16_t) getImm(op);
+        uint8_t vlo, vhi;
+        vlo = readVirtByte(emu, addr + 1);
+        if (emu->exceptionOccured)
                 return;
-        }
-        uint8_t vhi = readVirtByte(emu, addr);
-        if (emu->exceptionOccured) {
+        vhi = readVirtByte(emu, addr);
+        if (emu->exceptionOccured)
                 return;
-        }
-        uint32_t v = (int32_t) (int16_t) ((vhi << 8) | vlo);
+        v = (int32_t) (int16_t) ((vhi << 8) | vlo);
         setRt(emu, op, v);
 }
 
@@ -797,27 +746,24 @@ static void op_addi(Mips * emu, uint32_t op)
 
 static void op_lhu(Mips * emu, uint32_t op)
 {
-        uint32_t addr = (int32_t) getRs(emu, op) + (int16_t) getImm(op);
-        uint8_t vlo = readVirtByte(emu, addr + 1);
-        if (emu->exceptionOccured) {
+        uint32_t v, addr = (int32_t) getRs(emu, op) + (int16_t) getImm(op);
+        uint8_t vlo = readVirtByte(emu, addr + 1), vhi;
+        if (emu->exceptionOccured)
                 return;
-        }
-        uint8_t vhi = readVirtByte(emu, addr);
-        if (emu->exceptionOccured) {
+        vhi = readVirtByte(emu, addr);
+        if (emu->exceptionOccured)
                 return;
-        }
-        uint32_t v = (vhi << 8) | vlo;
+        v = (vhi << 8) | vlo;
         setRt(emu, op, v);
 }
 
 static void op_bgtz(Mips * emu, uint32_t op)
 {
         int32_t offset = sext18(getImm(op) * 4);
-        if (((int32_t) getRs(emu, op)) > 0) {
+        if (((int32_t) getRs(emu, op)) > 0)
                 emu->delaypc = (int32_t) (emu->pc + 4) + offset;
-        } else {
+        else
                 emu->delaypc = emu->pc + 8;
-        }
         emu->inDelaySlot = 1;
 }
 
@@ -830,17 +776,15 @@ static void op_bgtzl(Mips * emu, uint32_t op)
         } else {
                 emu->pc += 4;
         }
-
 }
 
 static void op_blez(Mips * emu, uint32_t op)
 {
         int32_t offset = sext18(getImm(op) * 4);
-        if (((int32_t) getRs(emu, op)) <= 0) {
+        if (((int32_t) getRs(emu, op)) <= 0)
                 emu->delaypc = (int32_t) (emu->pc + 4) + offset;
-        } else {
+        else
                 emu->delaypc = emu->pc + 8;
-        }
         emu->inDelaySlot = 1;
 }
 
@@ -861,28 +805,16 @@ static void op_lwr(Mips * emu, uint32_t op)
         uint32_t addr = ((int32_t) getRs(emu, op)) + c;
         uint32_t rtVal = getRt(emu, op);
         uint32_t wordVal = readVirtWord(emu, addr & (~3));
-        if (emu->exceptionOccured) {
-                return;
-        }
         uint32_t offset = addr & 3;
         uint32_t result;
+        if (emu->exceptionOccured) /*from readVirtWord*/
+                return;
 
         switch (offset) {
-        case 3:
-                result = wordVal;
-                break;
-
-        case 2:
-                result = ((rtVal & 0xff000000) | (wordVal >> 8));
-                break;
-
-        case 1:
-                result = ((rtVal & 0xffff0000) | (wordVal >> 16));
-                break;
-
-        case 0:
-                result = ((rtVal & 0xffffff00) | (wordVal >> 24));
-                break;
+        case 3: result = wordVal;                                       break;
+        case 2: result = ((rtVal & 0xff000000) | (wordVal >> 8));       break;
+        case 1: result = ((rtVal & 0xffff0000) | (wordVal >> 16));      break;
+        case 0: result = ((rtVal & 0xffffff00) | (wordVal >> 24));      break;
         }
         setRt(emu, op, result);
 }
@@ -995,7 +927,7 @@ static void op_mfc0(Mips * emu, uint32_t op)
         setRt(emu, op, retval);
 }
 
-static void op_mtc0(Mips * emu, uint32_t op)
+static void op_mtc0(Mips * emu, uint32_t op) /*move to co-processor 0*/
 {
         uint32_t rt = getRt(emu, op);
         uint32_t regNum = (op & 0xf800) >> 11;
@@ -1074,7 +1006,6 @@ static void op_mtc0(Mips * emu, uint32_t op)
                 printf("unhandled cp0 reg selector in mtc0 %d %d\n", regNum, sel);
                 exit(1);
         }
-
 }
 
 static void op_cache(Mips * emu, uint32_t op)
@@ -1245,7 +1176,6 @@ static void op_divu(Mips * emu, uint32_t op)
                 return;
         emu->lo = rs / rt;
         emu->hi = rs % rt;
-
 }
 
 static void op_div(Mips * emu, uint32_t op)
@@ -1436,169 +1366,87 @@ void doop(Mips * emu, uint32_t op)
         case 0x20000000:        op_addi(emu, op);       return;
         case 0x24000000:        op_addiu(emu, op);      return;
         case 0x28000000:        op_slti(emu, op);       return;        
-        case 0x2c000000:        op_sltiu(emu, op);return;        
-        case 0x30000000:        op_andi(emu, op);return;        
-        case 0x34000000:        op_ori(emu, op);return;        
-        case 0x38000000:        op_xori(emu, op);return;        
-        case 0x3c000000:        op_lui(emu, op);return;        
-        case 0x50000000:        op_beql(emu, op);return;        
-        case 0x54000000:        op_bnel(emu, op);return;        
-        case 0x58000000:        op_blezl(emu, op);return;        
-        case 0x80000000:        op_lb(emu, op);return;
-        case 0x84000000:        op_lh(emu, op);return;
-        case 0x88000000:        op_lwl(emu, op);return;
-        case 0x8c000000:        op_lw(emu, op);return;
-        case 0x90000000:        op_lbu(emu, op);return;
-        case 0x94000000:        op_lhu(emu, op);return;
-        case 0x98000000:        op_lwr(emu, op);return;
-        case 0xa0000000:        op_sb(emu, op);return;
-        case 0xa4000000:        op_sh(emu, op);return;
-        case 0xa8000000:        op_swl(emu, op);return;
-        case 0xac000000:        op_sw(emu, op);return;
-        case 0xb8000000:        op_swr(emu, op);return;
-        case 0xbc000000:        op_cache(emu, op);return;
-        case 0xc0000000:        op_ll(emu, op);return;
-        case 0xcc000000:        op_pref(emu, op);return;
-        case 0xe0000000:        op_sc(emu, op);return;
+        case 0x2c000000:        op_sltiu(emu, op);      return;        
+        case 0x30000000:        op_andi(emu, op);       return;        
+        case 0x34000000:        op_ori(emu, op);        return;        
+        case 0x38000000:        op_xori(emu, op);       return;        
+        case 0x3c000000:        op_lui(emu, op);        return;        
+        case 0x50000000:        op_beql(emu, op);       return;        
+        case 0x54000000:        op_bnel(emu, op);       return;        
+        case 0x58000000:        op_blezl(emu, op);      return;        
+        case 0x80000000:        op_lb(emu, op);         return;
+        case 0x84000000:        op_lh(emu, op);         return;
+        case 0x88000000:        op_lwl(emu, op);        return;
+        case 0x8c000000:        op_lw(emu, op);         return;
+        case 0x90000000:        op_lbu(emu, op);        return;
+        case 0x94000000:        op_lhu(emu, op);        return;
+        case 0x98000000:        op_lwr(emu, op);        return;
+        case 0xa0000000:        op_sb(emu, op);         return;
+        case 0xa4000000:        op_sh(emu, op);         return;
+        case 0xa8000000:        op_swl(emu, op);        return;
+        case 0xac000000:        op_sw(emu, op);         return;
+        case 0xb8000000:        op_swr(emu, op);        return;
+        case 0xbc000000:        op_cache(emu, op);      return;
+        case 0xc0000000:        op_ll(emu, op);         return;
+        case 0xcc000000:        op_pref(emu, op);       return;
+        case 0xe0000000:        op_sc(emu, op);         return;
         }
 
         switch (op & 0xfc00003f) {
-        case 0x0:
-                op_sll(emu, op);
-                return;
-        case 0x2:
-                op_srl(emu, op);
-                return;
-        case 0x3:
-                op_sra(emu, op);
-                return;
-        case 0x4:
-                op_sllv(emu, op);
-                return;
-        case 0x6:
-                op_srlv(emu, op);
-                return;
-        case 0x7:
-                op_srav(emu, op);
-                return;
-        case 0x8:
-                op_jr(emu, op);
-                return;
-        case 0x9:
-                op_jalr(emu, op);
-                return;
-        case 0xc:
-                op_syscall(emu, op);
-                return;
-        case 0xf:
-                op_sync(emu, op);
-                return;
-        case 0x10:
-                op_mfhi(emu, op);
-                return;
-        case 0x11:
-                op_mthi(emu, op);
-                return;
-        case 0x12:
-                op_mflo(emu, op);
-                return;
-        case 0x13:
-                op_mtlo(emu, op);
-                return;
-        case 0x18:
-                op_mult(emu, op);
-                return;
-        case 0x19:
-                op_multu(emu, op);
-                return;
-        case 0x1a:
-                op_div(emu, op);
-                return;
-        case 0x1b:
-                op_divu(emu, op);
-                return;
-        case 0x20:
-                op_add(emu, op);
-                return;
-        case 0x21:
-                op_addu(emu, op);
-                return;
-        case 0x22:
-                op_sub(emu, op);
-                return;
-        case 0x23:
-                op_subu(emu, op);
-                return;
-        case 0x24:
-                op_and(emu, op);
-                return;
-        case 0x25:
-                op_or(emu, op);
-                return;
-        case 0x26:
-                op_xor(emu, op);
-                return;
-        case 0x27:
-                op_nor(emu, op);
-                return;
-        case 0x2a:
-                op_slt(emu, op);
-                return;
-        case 0x2b:
-                op_sltu(emu, op);
-                return;
-        case 0x36:
-                op_tne(emu, op);
-                return;
+        case 0x0:               op_sll(emu, op);        return;
+        case 0x2:               op_srl(emu, op);        return;
+        case 0x3:               op_sra(emu, op);        return;
+        case 0x4:               op_sllv(emu, op);       return;
+        case 0x6:               op_srlv(emu, op);       return;
+        case 0x7:               op_srav(emu, op);       return;
+        case 0x8:               op_jr(emu, op);         return;
+        case 0x9:               op_jalr(emu, op);       return;
+        case 0xc:               op_syscall(emu, op);    return;
+        case 0xf:               op_sync(emu, op);       return;
+        case 0x10:              op_mfhi(emu, op);       return;
+        case 0x11:              op_mthi(emu, op);       return;
+        case 0x12:              op_mflo(emu, op);       return;
+        case 0x13:              op_mtlo(emu, op);       return;
+        case 0x18:              op_mult(emu, op);       return;
+        case 0x19:              op_multu(emu, op);      return;
+        case 0x1a:              op_div(emu, op);        return;
+        case 0x1b:              op_divu(emu, op);       return;
+        case 0x20:              op_add(emu, op);        return;
+        case 0x21:              op_addu(emu, op);       return;
+        case 0x22:              op_sub(emu, op);        return;
+        case 0x23:              op_subu(emu, op);       return;
+        case 0x24:              op_and(emu, op);        return;
+        case 0x25:              op_or(emu, op);         return;
+        case 0x26:              op_xor(emu, op);        return;
+        case 0x27:              op_nor(emu, op);        return;
+        case 0x2a:              op_slt(emu, op);        return;
+        case 0x2b:              op_sltu(emu, op);       return;
+        case 0x36:              op_tne(emu, op);        return;
         }
+
         switch (op & 0xfc1f0000) {
-        case 0x4000000:
-                op_bltz(emu, op);
-                return;
-        case 0x4010000:
-                op_bgez(emu, op);
-                return;
-        case 0x4020000:
-                op_bltzl(emu, op);
-                return;
-        case 0x4030000:
-                op_bgezl(emu, op);
-                return;
-        case 0x4100000:
-                op_bltzal(emu, op);
-                return;
-        case 0x4110000:
-                op_bgezal(emu, op);
-                return;
-        case 0x5c000000:
-                op_bgtzl(emu, op);
-                return;
+        case 0x4000000:         op_bltz(emu, op);       return;
+        case 0x4010000:         op_bgez(emu, op);       return;
+        case 0x4020000:         op_bltzl(emu, op);      return;
+        case 0x4030000:         op_bgezl(emu, op);      return;
+        case 0x4100000:         op_bltzal(emu, op);     return;
+        case 0x4110000:         op_bgezal(emu, op);     return;
+        case 0x5c000000:        op_bgtzl(emu, op);      return;
         }
+
         switch (op & 0xffffffff) {
-        case 0x42000002:
-                op_tlbwi(emu, op);
-                return;
-        case 0x42000006:
-                op_tlbwr(emu, op);
-                return;
-        case 0x42000008:
-                op_tlbp(emu, op);
-                return;
-        case 0x42000018:
-                op_eret(emu, op);
-                return;
+        case 0x42000002:        op_tlbwi(emu, op);      return;
+        case 0x42000006:        op_tlbwr(emu, op);      return;
+        case 0x42000008:        op_tlbp(emu, op);       return;
+        case 0x42000018:        op_eret(emu, op);       return;
         }
+
         switch (op & 0xfc0007ff) {
-        case 0xa:
-                op_movz(emu, op);
-                return;
-        case 0xb:
-                op_movn(emu, op);
-                return;
-        case 0x70000002:
-                op_mul(emu, op);
-                return;
+        case 0xa:               op_movz(emu, op);       return;
+        case 0xb:               op_movn(emu, op);       return;
+        case 0x70000002:        op_mul(emu, op);        return;
         }
+
         switch (op & 0xffe00000) {
         case 0x40000000: op_mfc0(emu, op); return;
         case 0x40800000: op_mtc0(emu, op); return;
