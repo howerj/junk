@@ -110,15 +110,8 @@ EmuTrace *startTrace(char *tracefile);
 void updateTrace(EmuTrace * t, Mips * emu);
 void endTrace(EmuTrace * t);
 
-static void triggerExternalInterrupt(Mips * emu, unsigned intNum)
-{
-        emu->CP0_Cause |= ((1 << intNum) & 0x3f) << 10;
-}
-
-static void clearExternalInterrupt(Mips * emu, unsigned intNum)
-{
-        emu->CP0_Cause &= ~(((1 << intNum) & 0x3f) << 10);
-}
+void triggerExternalInterrupt(Mips * emu, unsigned intNum);
+void clearExternalInterrupt(Mips * emu, unsigned intNum);
 
 void uart_Reset(Mips * emu);
 

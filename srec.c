@@ -17,6 +17,7 @@ static int fisEof(void *ud)
 
 int loadSrecFromFile_mips(Mips * emu, char *fname)
 {
+        SrecLoader loader;
         void *ud = fopen(fname, "r");
         int ret;
 
@@ -25,7 +26,6 @@ int loadSrecFromFile_mips(Mips * emu, char *fname)
                 return 1;
         }
 
-        SrecLoader loader;
         loader.nextChar = &fnextChar;
         loader.isEof = &fisEof;
         loader.userdata = ud;

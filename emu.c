@@ -1,40 +1,18 @@
-
 #include "mips.h"
 #include "util.h"
 #include <stdlib.h>
 #include <stdio.h>
 
-#define CP0St_CU3   31
-#define CP0St_CU2   30
-#define CP0St_CU1   29
-#define CP0St_CU0   28
-#define CP0St_RP    27
-#define CP0St_FR    26
-#define CP0St_RE    25
-#define CP0St_MX    24
-#define CP0St_PX    23
-#define CP0St_BEV   22
-#define CP0St_TS    21
-#define CP0St_SR    20
-#define CP0St_NMI   19
-#define CP0St_IM    8
-#define CP0St_KX    7
-#define CP0St_SX    6
-#define CP0St_UX    5
-#define CP0St_UM    4
-#define CP0St_KSU   3
-#define CP0St_ERL   2
-#define CP0St_EXL   1
-#define CP0St_IE    0
-
-char *regn2o32[] = {
-        "r0", "at", "v0", "v1", "a0", "a1", "a2", "a3",
-        "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7",
-        "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",
-        "t8", "t9", "k0", "k1", "gp", "sp", "s8", "ra"
+enum status_registers_bits {
+      CP0St_IE   =  0,   CP0St_EXL  =  1,   CP0St_ERL  =  2,   CP0St_KSU  =  3,
+      CP0St_UM   =  4,   CP0St_UX   =  5,   CP0St_SX   =  6,   CP0St_KX   =  7,
+      CP0St_IM   =  8,   CP0St_NMI  =  19,  CP0St_SR   =  20,  CP0St_TS   =  21,
+      CP0St_BEV  =  22,  CP0St_PX   =  23,  CP0St_MX   =  24,  CP0St_RE   =  25,
+      CP0St_FR   =  26,  CP0St_RP   =  27,  CP0St_CU0  =  28,  CP0St_CU1  =  29,
+      CP0St_CU2  =  30,  CP0St_CU3  =  31
 };
 
-void doop(Mips * emu, uint32_t op);     /* predeclare doop its only local to this file*/
+static void doop(Mips * emu, uint32_t op);
 
 Mips *new_mips(uint32_t physMemSize)
 {       void *mem;
@@ -76,23 +54,22 @@ int32_t sext18(uint32_t val)
         return 0x0003ffff & val;
 }
 
-/*Possible Values for the EXC field in the status reg*/
-#define EXC_Int 0
-#define EXC_Mod 1
-#define EXC_TLBL 2
-#define EXC_TLBS 3
-#define EXC_AdEL 4
-#define EXC_AdES 5
-#define EXC_IBE 6
-#define EXC_DBE 7
-#define EXC_SYS 8
-#define EXC_BP 9
-#define EXC_RI 10
-#define EXC_CpU 11
-#define EXC_Ov 12
-#define EXC_Tr 13
-#define EXC_Watch 23
-#define EXC_MCheck 24
+enum exc_field { /*Possible Values for the EXC field in the status reg*/
+        EXC_Int   =  0,   EXC_Mod   =  1,   EXC_TLBL   =  2,   EXC_TLBS    = 3,
+        EXC_AdEL  =  4,   EXC_AdES  =  5,   EXC_IBE    =  6,   EXC_DBE     = 7,
+        EXC_SYS   =  8,   EXC_BP    =  9,   EXC_RI     =  10,  EXC_CpU     = 11,
+        EXC_Ov    =  12,  EXC_Tr    =  13,  EXC_Watch  =  23,  EXC_MCheck  = 24
+};
+
+void triggerExternalInterrupt(Mips * emu, unsigned intNum) /*not used*/
+{
+        emu->CP0_Cause |= ((1 << intNum) & 0x3f) << 10;
+}
+
+void clearExternalInterrupt(Mips * emu, unsigned intNum) /*not used*/
+{
+        emu->CP0_Cause &= ~(((1 << intNum) & 0x3f) << 10);
+}
 
 static uint32_t getExceptionCode(Mips * emu)
 {
@@ -116,8 +93,8 @@ static uint32_t isKernelMode(Mips * emu)
 
 enum tblReturnCodes { TLBRET_MATCH, TLBRET_NOMATCH, TLBRET_DIRTY, TLBRET_INVALID };
 
-/*horrible but deterministic fake rand for testing*/
-uint32_t counter = 0;
+
+uint32_t counter = 0; /*horrible but deterministic fake rand for testing*/
 
 static uint32_t randomInRange(uint32_t a, uint32_t b)
 {
@@ -132,21 +109,8 @@ static void writeTlbExceptionExtraData(Mips * emu, uint32_t vaddr)
         emu->CP0_EntryHi = (emu->CP0_EntryHi & 0xff) | (vaddr & (0xffffe000));
 }
 
-static void debug_dumpTlb(Mips * emu)
-{
-        int i;
-        for (i = 0; i < 16; i++) {
-                TLB_entry *tlb_e = &emu->tlb.entries[i];
-                printf("TLBENT %d:\n" "   VPN2: %08x\n" "   ASID: %02x\n" "   G: %d\n" "   V0: %d\n" "   V1: %d\n"
-                       /*XXX more fields*/
-                       , i, tlb_e->VPN2, tlb_e->ASID, tlb_e->G, tlb_e->V0, tlb_e->V1);
-        }
-
-}
-
-/*XXX currently hardcoded for 4k pages*/
 static int tlb_lookup(Mips * emu, uint32_t vaddress, uint32_t * physical, int write)
-{
+{ /*XXX currently hardcoded for 4k pages*/
         uint8_t ASID = emu->CP0_EntryHi & 0xFF;
         int i;
         emu->tlb.exceptionWasNoMatch = 0;
@@ -183,10 +147,8 @@ static int tlb_lookup(Mips * emu, uint32_t vaddress, uint32_t * physical, int wr
         return TLBRET_NOMATCH;
 }
 
-/*internally triggers exceptions on error*/
-/*returns an error code*/
 static int translateAddress(Mips * emu, uint32_t vaddr, uint32_t * paddr_out, int write)
-{
+{ /*internally triggers exceptions on error returns an error code*/
         if (vaddr <= 0x7FFFFFFF) {
                 /* useg */
                 if (emu->CP0_Status & (1 << CP0St_ERL)) {
@@ -226,7 +188,7 @@ static uint32_t readVirtWord(Mips * emu, uint32_t addr)
         }
 
         if ((paddr >= UARTBASE) && (paddr <= (UARTBASE + UARTSIZE)))
-                return uart_read(emu, paddr - UARTBASE);
+                return 0; /*XXX: uart read always returns 0*/
 
         if (paddr >= emu->pmemsz) {
                 printf("unhandled bus error at pc: %08x reading paddr: %08x\n", emu->pc, paddr);
@@ -247,10 +209,8 @@ static void writeVirtWord(Mips * emu, uint32_t addr, uint32_t val)
                 exit(1);
         }
 
-        if (paddr >= UARTBASE && paddr <= UARTBASE + UARTSIZE) {
-                uart_write(emu, paddr - UARTBASE, val);
-                return;
-        }
+        if (paddr >= UARTBASE && paddr <= UARTBASE + UARTSIZE)
+                return; /*XXX:  uart_write does not do anything at the moment*/
 
         if (paddr >= emu->pmemsz) {
                 printf("bus error at pc: %08x writing paddr: %08x\n", emu->pc, paddr);
@@ -321,7 +281,6 @@ static void writeVirtByte(Mips * emu, uint32_t addr, uint8_t val)
 
 static void handleException(Mips * emu, int inDelaySlot)
 {
-
         uint32_t offset;
         int exccode = getExceptionCode(emu);
 
@@ -360,14 +319,6 @@ static void handleException(Mips * emu, int inDelaySlot)
                 emu->pc = 0xbfc00200 + offset;
         else
                 emu->pc = 0x80000000 + offset;
-
-        /*if(exccode != EXC_Int) {*/
-        /*    #define TARGET_FMT_lx "%08x"*/
-        /*    printf("\nException: PC " TARGET_FMT_lx " EPC " TARGET_FMT_lx " cause %d\n"*/
-        /*            "    S %08x C %08x A " TARGET_FMT_lx "\n",*/
-        /*            emu->pc, emu->CP0_Epc, exccode,*/
-        /*            emu->CP0_Status, emu->CP0_Cause, emu->CP0_BadVAddr);*/
-        /*}*/
 
         emu->exceptionOccured = 0;
 }
@@ -834,71 +785,59 @@ static void op_mfc0(Mips * emu, uint32_t op)
         case 2:                /*EntryLo0*/
                 retval = emu->CP0_EntryLo0;
                 break;
-
         case 3:                /*EntryLo1*/
                 retval = emu->CP0_EntryLo1;
                 break;
-
         case 4:                /* Context*/
                 if (sel != 0) 
                         goto unhandled;
                 retval = emu->CP0_Context;
                 break;
-
         case 5:                /* Page Mask*/
                 if (sel != 0) 
                         goto unhandled;
                 retval = emu->CP0_PageMask;
                 break;
-
         case 6:                /* Wired*/
                 if (sel != 0)
                         goto unhandled;
                 retval = emu->CP0_Wired;
                 break;
-
         case 8:                /* BadVAddr*/
                 if (sel != 0) 
                         goto unhandled;
                 retval = emu->CP0_BadVAddr;
                 break;
-
         case 9:                /* Count*/
                 if (sel != 0) 
                         goto unhandled;
                 retval = emu->CP0_Count;
                 break;
-
         case 10:               /* EntryHi*/
                 if (sel != 0) 
                         goto unhandled;
                 retval = emu->CP0_EntryHi;
                 break;
-
         case 11:               /* Compare*/
                 if (sel != 0) 
                         goto unhandled;
                 retval = emu->CP0_Compare;
                 break;
-
         case 12:               /* Status*/
                 if (sel != 0) 
                         goto unhandled;
                 retval = emu->CP0_Status;
                 break;
-
         case 13:
                 if (sel != 0) 
                         goto unhandled;
                 retval = emu->CP0_Cause;
                 break;
-
         case 14:               /* EPC*/
                 if (sel != 0)
                         goto unhandled;
                 retval = emu->CP0_Epc;
                 break;
-
         case 15:
                 retval = 0x00018000;    /*processor id, just copied qemu 4kc*/
                 break;
@@ -912,12 +851,8 @@ static void op_mfc0(Mips * emu, uint32_t op)
                         break;
                 }
                 goto unhandled;
-
-        case 18:
-        case 19:
-                retval = 0;
-                break;
-
+        case 18: /*fallthrough ?*/
+        case 19: retval = 0; break;
         default:
  unhandled:
                 printf("unhandled cp0 reg selector in mfc0 %d %d\n", regNum, sel);
@@ -977,19 +912,19 @@ static void op_mtc0(Mips * emu, uint32_t op) /*move to co-processor 0*/
                 emu->CP0_Compare = rt;
                 break;
         case 12:               /* Status*/
+        {
+                uint32_t status_mask = 0x7d7cff17; /*XXX: magic number*/
                 if (sel)
                         goto unhandled;
-                uint32_t status_mask = 0x7d7cff17;
                 emu->CP0_Status = (emu->CP0_Status & ~status_mask) | (rt & status_mask);
-                /*XXX NMI is one way write*/
-                break;
-
+        } break; /*XXX NMI is one way write*/
         case 13:               /*cause*/
+        {       
+                uint32_t cause_mask = ((1 << 23) | (1 << 22) | (3 << 8));
                 if (sel != 0)
                         goto unhandled;
-                uint32_t cause_mask = ((1 << 23) | (1 << 22) | (3 << 8));
                 emu->CP0_Cause = (emu->CP0_Cause & ~cause_mask) | (rt & cause_mask);
-                break;
+        } break;
         case 14:               /*epc*/
                 if (sel != 0)
                         goto unhandled;
@@ -1038,8 +973,9 @@ static void op_eret(Mips * emu, uint32_t op)
 static void helper_writeTlbEntry(Mips * emu, uint32_t idx)
 {
         /*printf("tlb write idx %d\n",idx);*/
+        TLB_entry *tlbent;
         idx &= 0xf;             /*only 16 entries must mask it off*/
-        TLB_entry *tlbent = &emu->tlb.entries[idx];
+        tlbent  = &emu->tlb.entries[idx];
         tlbent->VPN2 = emu->CP0_EntryHi >> 13;
         tlbent->ASID = emu->CP0_EntryHi & 0xff;
         tlbent->G = (emu->CP0_EntryLo0 & emu->CP0_EntryLo1) & 1;
@@ -1054,22 +990,25 @@ static void helper_writeTlbEntry(Mips * emu, uint32_t idx)
 }
 
 static void op_tlbwi(Mips * emu, uint32_t op)
-{       UNUSED(op);
+{       
         uint32_t idx = emu->CP0_Index;
+        UNUSED(op);
         helper_writeTlbEntry(emu, idx);
 }
 
 static void op_tlbwr(Mips * emu, uint32_t op)
-{       UNUSED(op);       
+{       
         uint32_t idx = randomInRange(emu->CP0_Wired, 15);
+        UNUSED(op);       
         helper_writeTlbEntry(emu, idx);
 }
 
 /*XXX hardcoded for 4k pages*/
 static void op_tlbp(Mips * emu, uint32_t op)
-{       UNUSED(op);
+{       
         uint8_t ASID = emu->CP0_EntryHi & 0xFF;
         int i;
+        UNUSED(op);
 
         emu->CP0_Index = 0x80000000;
 
@@ -1354,7 +1293,7 @@ static void op_bltzl(Mips * emu, uint32_t op)
         }
 }
 
-void doop(Mips * emu, uint32_t op)
+static void doop(Mips * emu, uint32_t op)
 {
         switch (op & 0xfc000000) {
         case 0x8000000:         op_j(emu, op);          return;
@@ -1459,3 +1398,4 @@ void doop(Mips * emu, uint32_t op)
         emu->exceptionOccured = 1;
         return;
 }
+

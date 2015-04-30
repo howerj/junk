@@ -7,5 +7,5 @@
 * Hide internal structures from units that do not need to know
   about the internals of it (opaque structure).
 * Fix warnings (mostly unused variables).
-* Make more C89 friendly.
-* Replace SREC format.
+* Make more C89 friendly (done)
+* Replace SREC format?

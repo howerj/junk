@@ -1,25 +1,9 @@
 #include "mips.h"
 #include <stdio.h>
-#include <stdlib.h> /*XXX remove this when exit calls are removed...*/
+#include <stdlib.h>
 
-/*XXX ThrowCTI NextInterrupt and ClearInterrupt recurse sometimes
-  seemingly pointlessly.*/
-
-/* some forward declarations */
-
-static void uart_NextInterrupt(Mips * emu);
 static uint8_t uart_ReadReg8(Mips * emu, uint32_t offset);
 static void uart_WriteReg8(Mips * emu, uint32_t offset, uint8_t x);
-
-uint32_t uart_read(Mips * emu, uint32_t offset)
-{
-        return 0;
-}
-
-void uart_write(Mips * emu, uint32_t offset, uint32_t v)
-{
-
-}
 
 uint8_t uart_readb(Mips * emu, uint32_t offset)
 {
@@ -29,44 +13,41 @@ uint8_t uart_readb(Mips * emu, uint32_t offset)
 }
 
 void uart_writeb(Mips * emu, uint32_t offset, uint8_t v)
-{
-        /*printf("serial writeb %u %c\n",offset,v);*/
+{     /*printf("serial writeb %u %c\n",offset,v);*/
         uart_WriteReg8(emu, offset, v);
 }
 
-/* code inspired by/ported from*/
-/* https://raw.github.com/s-macke/jor1k/master/js/worker/uart.js*/
-/* -------------------------------------------------*/
-/* -------------------- UART -----------------------*/
-/* -------------------------------------------------*/
-
+/*code inspired by/ported from 
+ * <https://raw.github.com/s-macke/jor1k/master/js/worker/uart.js> */
 #define UART_LSR_DATA_READY 0x1
 #define UART_LSR_FIFO_EMPTY 0x20
 #define UART_LSR_TRANSMITTER_EMPTY 0x40
 
-#define UART_IER_THRI 0x02      /* Enable Transmitter holding register int. */
-#define UART_IER_RDI 0x01       /* Enable receiver data interrupt */
+#define UART_IER_RDI  0x01        /* Enable receiver data interrupt */
+#define UART_IER_THRI 0x02        /* Enable Transmitter holding register int. */
 
-#define UART_IIR_MSI 0x00       /* Modem status interrupt (Low priority) */
+#define UART_IIR_MSI    0x00      /* Modem status interrupt (Low priority) */
 #define UART_IIR_NO_INT 0x01
-#define UART_IIR_THRI 0x02      /* Transmitter holding register empty */
-#define UART_IIR_RDI 0x04       /* Receiver data interrupt */
-#define UART_IIR_RLSI 0x06      /* Receiver line status interrupt (High p.) */
-#define UART_IIR_CTI 0x0c       /* Character timeout */
+#define UART_IIR_THRI   0x02      /* Transmitter holding register empty */
+#define UART_IIR_RDI    0x04      /* Receiver data interrupt */
+#define UART_IIR_RLSI   0x06      /* Receiver line status interrupt (High p.) */
+#define UART_IIR_CTI    0x0c      /* Character timeout */
 
-#define UART_LCR_DLAB 0x80      /* Divisor latch access bit */
+#define UART_LCR_DLAB   0x80      /* Divisor latch access bit */
 
-#define UART_DLL 0              /* R/W: Divisor Latch Low, DLAB=1 */
-#define UART_DLH 1              /* R/W: Divisor Latch High, DLAB=1 */
+#define UART_DLL 0                /* R/W: Divisor Latch Low, DLAB=1 */
+#define UART_DLH 1                /* R/W: Divisor Latch High, DLAB=1 */
 
-#define UART_IER 1              /* R/W: Interrupt Enable Register */
-#define UART_IIR 2              /* R: Interrupt ID Register */
-#define UART_FCR 2              /* W: FIFO Control Register */
-#define UART_LCR 3              /* R/W: Line Control Register */
-#define UART_MCR 4              /* W: Modem Control Register */
-#define UART_LSR 5              /* R: Line Status Register */
-#define UART_MSR 6              /* R: Modem Status Register */
-#define UART_SCR 7              /* R/W:  */
+enum uart_registers {
+        UART_IER = 1,   /* R/W: Interrupt Enable Register */
+        UART_IIR = 2,   /* R: Interrupt ID Register */
+        UART_FCR = 2,   /* W: FIFO Control Register */
+        UART_LCR = 3,   /* R/W: Line Control Register */
+        UART_MCR = 4,   /* W: Modem Control Register */
+        UART_LSR = 5,   /* R: Line Status Register */
+        UART_MSR = 6,   /* R: Modem Status Register */
+        UART_SCR = 7    /* R/W:  */
+};
 
 /* FIFO code - used so we dont drop characters of input */
 /* dont call these directly, */
@@ -126,27 +107,25 @@ void uart_Reset(Mips * emu)
 
 static void uart_UpdateIrq(Mips * emu)
 {
-        if ((emu->serial.LSR & UART_LSR_DATA_READY) && (emu->serial.IER & UART_IER_RDI)) {
+        if ((emu->serial.LSR & UART_LSR_DATA_READY) && (emu->serial.IER & UART_IER_RDI))
                 emu->serial.IIR = UART_IIR_RDI;
-        } else if ((emu->serial.LSR & UART_LSR_FIFO_EMPTY) && (emu->serial.IER & UART_IER_THRI)) {
+        else if ((emu->serial.LSR & UART_LSR_FIFO_EMPTY) && (emu->serial.IER & UART_IER_THRI))
                 emu->serial.IIR = UART_IIR_THRI;
-        } else {
+        else 
                 emu->serial.IIR = UART_IIR_NO_INT;
-        }
 
-        /*if there is an interrupt pending*/
-        if (emu->serial.IIR != UART_IIR_NO_INT)
+        if (emu->serial.IIR != UART_IIR_NO_INT) /*if there is an interrupt pending*/
                 triggerExternalInterrupt(emu, 0);
         else 
                 clearExternalInterrupt(emu, 0);
-};
+}
 
 void uart_RecieveChar(Mips * emu, uint8_t c)
 {
         uart_fifoPush(emu, c);
         emu->serial.LSR |= UART_LSR_DATA_READY;
         uart_UpdateIrq(emu);
-};
+}
 
 static uint8_t uart_ReadReg8(Mips * emu, uint32_t offset)
 {
@@ -163,8 +142,7 @@ static uint8_t uart_ReadReg8(Mips * emu, uint32_t offset)
                 }
         }
         switch (offset) {
-        case 0:
-                ret = 0;
+        case 0: ret = 0;
                 if (uart_fifoHasData(emu)) {
                         ret = uart_fifoGet(emu);
                         emu->serial.LSR &= ~UART_LSR_DATA_READY;
@@ -186,15 +164,13 @@ static uint8_t uart_ReadReg8(Mips * emu, uint32_t offset)
                                 emu->serial.LSR &= ~UART_LSR_DATA_READY;
                         return emu->serial.LSR;
         case UART_SCR:  return emu->serial.SCR;
-        default:
-                printf("Error in uart ReadRegister: not supported %u\n", offset);
-                exit(1);
+        default: fprintf(stderr,"Error in uart ReadRegister: not supported %u\n", offset);
+                 exit(1);
         }
-};
+}
 
 static void uart_WriteReg8(Mips * emu, uint32_t offset, uint8_t x)
 {
-
         offset &= 7;
 
         if (emu->serial.LCR & UART_LCR_DLAB) {
@@ -233,16 +209,10 @@ static void uart_WriteReg8(Mips * emu, uint32_t offset, uint8_t x)
                         uart_fifoClear(emu);
                 }
                 break;
-        case UART_LCR:
-                emu->serial.LCR = x;
-                break;
-        case UART_MCR:
-                emu->serial.MCR = x;
-                break;
-        case UART_SCR:
-                emu->serial.SCR = x;
-                break;
+        case UART_LCR: emu->serial.LCR = x; break;
+        case UART_MCR: emu->serial.MCR = x; break;
+        case UART_SCR: emu->serial.SCR = x; break;
         default:
                 printf("Error in uart WriteRegister: not supported %u\n", offset);
         }
-};
+}
