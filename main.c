@@ -3,10 +3,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifdef __WIN32
+
+#elif __unix__
 #include <pthread.h>
 #include <unistd.h>
+#endif 
 
-pthread_mutex_t emu_mutex;
+mutex_type emu_mutex;
 
 void *runEmulator(void *p)
 {
@@ -15,13 +19,13 @@ void *runEmulator(void *p)
         while (emu->shutdown != 1) {
                 uint64_t i;
 
-                if (pthread_mutex_lock(&emu_mutex))
+                if (util_mutex_lock(emu_mutex))
                         FATAL("mutex failed lock, exiting");
 
                 for (i = 0; i < 1024; i++)
                         step_mips(emu);
 
-                if (pthread_mutex_unlock(&emu_mutex))
+                if (util_mutex_unlock(emu_mutex))
                         FATAL("mutex failed unlock, exiting");
         }
         free_mips(emu);
@@ -30,10 +34,10 @@ void *runEmulator(void *p)
 
 int main(int argc, char *argv[])
 {
-        pthread_t emu_thread;
+        thread_type emu_thread;
         Mips *emu;
 
-        if (pthread_mutex_init(&emu_mutex, NULL)) {
+        if (!(emu_mutex = util_mutex_create())) {
                 puts("failed to create mutex");
                 return 1;
         }
@@ -52,20 +56,23 @@ int main(int argc, char *argv[])
         if (util_ttyraw())
                 FATAL("failed to configure raw mode");
 
-        if (pthread_create(&emu_thread, NULL, runEmulator, emu))
+        if (!(emu_thread=util_thread_alloc()))
+                FATAL("calloc failed");
+
+        if (util_thread_new((thread_type)&emu_thread, runEmulator, emu))
                 FATAL("creating emulator thread failed!");
 
-        while (1) {
+        while (1) { 
                 int c;
-                if ((c = getchar()) == EOF)
+                if ((c = util_getchraw()) == EOF)
                         return 1;
 
-                if (pthread_mutex_lock(&emu_mutex))
+                if (util_mutex_lock(emu_mutex))
                         FATAL("mutex failed lock, exiting");
 
                 uart_RecieveChar(emu, c);
 
-                if (pthread_mutex_unlock(&emu_mutex))
+                if (util_mutex_unlock(emu_mutex))
                         FATAL("mutex failed unlock, exiting");
         }
         return 0;

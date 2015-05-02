@@ -4,8 +4,15 @@
 #include <assert.h>
 #include <signal.h>
 
+#ifdef __WIN32
+#include <conio.h>
+#elif __unix__
 #include <termios.h>
+#include <pthread.h>
 #include <unistd.h>
+#else
+#error "Not Unix or Windows :C"
+#endif
 
 /* Warnings and error messages */
 
@@ -18,11 +25,16 @@ void util_fatal(char *msg, char *file, unsigned line)
 void util_warn(char *msg, char *file, unsigned line)
 {
         assert(msg && file);
-        fprintf(stderr, "(%s %s %u)\n", msg, file, line);
+        fprintf(stderr, "(error \"%s\" %s %u)\n", msg, file, line);
 }
 
 /* Terminal Settings */
 
+#ifdef __WIN32
+void util_restoreTermAtSignal(int sig) { UNUSED(sig); }
+int util_ttyraw(void) { return 0; }
+int util_getchraw(void) { return EOF; /*not implemented yet, use CONIO.h*/ }
+#elif __unix__
 struct termios oldtermios, newtermios;
 static int terminalSettingsHaveChanged = 0;
 static void util_restoreTermAtExit(void)
@@ -104,4 +116,60 @@ int util_ttyraw(void)
         return 0;
 }
 
+int util_getchraw(void) { return getchar(); }
 
+#endif
+
+/*locks and threads; needs work.*/
+
+mutex_type util_mutex_create(void)
+{
+#ifdef __WIN32 
+        return NULL; 
+#elif __unix__
+        mutex_type p;
+        p = calloc(1, sizeof(pthread_mutex_t));
+        if(!p)
+                return NULL;
+        pthread_mutex_init(p, NULL);
+        return p;
+#endif
+}
+
+int util_mutex_lock(mutex_type m) 
+{
+#ifdef __WIN32
+        return -1;
+#elif __unix__
+        return pthread_mutex_lock((pthread_mutex_t*)m); 
+#endif
+}
+
+int util_mutex_unlock(mutex_type m) 
+{ 
+#ifdef __WIN32
+        return -1;
+#elif __unix__
+        return pthread_mutex_unlock((pthread_mutex_t*)m); 
+#endif
+}
+
+thread_type util_thread_alloc(void)
+{
+#ifdef __WIN32
+        return NULL;
+#else
+        return calloc(1, sizeof(pthread_t));
+#endif
+}
+
+int util_thread_new(thread_type thread, void *(*routine) (void*), void *args) 
+{ 
+#ifdef __WIN32
+        return -1; 
+#else
+        return pthread_create(thread, NULL, routine, args);
+#endif
+}
+
+/*do not need join and the like yet*/
