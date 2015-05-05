@@ -10,7 +10,7 @@ void *runEmulator(void *p)
         Mips *emu = (Mips *) p;
 
         while (!mips_isMipsShutdown(emu)) {
-                uint64_t i;
+                unsigned i;
 
                 if (util_mutex_lock(emu_mutex))
                         FATAL("mutex failed lock, exiting");

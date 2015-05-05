@@ -1,5 +1,10 @@
 #ifndef INTERNAL_H
 #define INTERNAL_H
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stdint.h>
 
 typedef struct {
         uint32_t VPN2;
@@ -77,4 +82,7 @@ typedef struct _Mips {
         TLB tlb;
 } Mips;
 
+#ifdef __cplusplus
+}
+#endif
 #endif
