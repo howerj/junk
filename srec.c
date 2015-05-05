@@ -1,6 +1,15 @@
 #include "mips.h"
+#include "internal.h"
 #include <stdio.h>
 #include <stdlib.h>
+
+typedef struct _SrecLoader {
+        void *userdata;
+        int (*nextChar) (void *);
+        int (*isEof) (void *);
+} SrecLoader;
+
+int mips_loadSrec(Mips *emu, SrecLoader *s);
 
 static int fnextChar(void *ud)
 {
@@ -15,7 +24,7 @@ static int fisEof(void *ud)
         return feof((FILE *) ud);
 }
 
-int loadSrecFromFile_mips(Mips * emu, char *fname)
+int mips_loadSrecFromFile(Mips * emu, char *fname)
 {
         SrecLoader loader;
         void *ud = fopen(fname, "r");
@@ -29,7 +38,7 @@ int loadSrecFromFile_mips(Mips * emu, char *fname)
         loader.nextChar = &fnextChar;
         loader.isEof = &fisEof;
         loader.userdata = ud;
-        ret = loadSrec_mips(emu, &loader);
+        ret = mips_loadSrec(emu, &loader);
         fclose((FILE *) ud);
         return ret;
 }
@@ -48,7 +57,7 @@ static int sisEof(void *ud)
         return (**(char **)ud) == 0;
 }
 
-int loadSrecFromString_mips(Mips * emu, char *srec)
+int mips_loadSrecFromString(Mips * emu, char *srec)
 {
         void *ud = (void *)&srec;
         int ret;
@@ -57,7 +66,7 @@ int loadSrecFromString_mips(Mips * emu, char *srec)
         loader.nextChar = &snextChar;
         loader.isEof = &sisEof;
         loader.userdata = ud;
-        ret = loadSrec_mips(emu, &loader);
+        ret = mips_loadSrec(emu, &loader);
         return ret;
 }
 
@@ -67,7 +76,6 @@ static void writeb(Mips * emu, uint32_t addr, uint8_t v)
         uint32_t word;
         unsigned offset;
         int shamt;
-        /*printf("loading %02x to %08x\n",v,addr);*/
 
         if (addr >= 0x80000000 && addr <= 0x9fffffff)
                 addr -= 0x80000000;
@@ -101,7 +109,7 @@ static int srecReadType(SrecLoader * loader)
 {
         int c = loader->nextChar(loader->userdata);
         if (c == -1)
-                return -1;      /* 0 type srecord will trigger a skip, which will terminate*/
+                return -1;  /* 0 type srecord will trigger a skip, which will terminate*/
         if (c != 'S')
                 return -2;
         c = loader->nextChar(loader->userdata) - '0';
@@ -164,7 +172,7 @@ static int srecLoadData(SrecLoader * loader, Mips * emu, uint32_t addr, uint32_t
         return 0;
 }
 
-int loadSrec_mips(Mips * emu, SrecLoader * loader)
+int mips_loadSrec(Mips * emu, SrecLoader * loader)
 {
         uint32_t addr;
         uint8_t count;

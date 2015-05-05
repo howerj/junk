@@ -1,5 +1,6 @@
 # To-Do.
 * Investigate all XXX.
+* Use gprof and other profiling tools.
 * Documentation for all magic numbers.
 * Turn into library.
 * Instead of calling exit(1) on failure longjmp and clean up.

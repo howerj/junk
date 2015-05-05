@@ -1,4 +1,5 @@
 #include "mips.h"
+#include "internal.h"
 #include "util.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -14,7 +15,12 @@ enum status_registers_bits {
 
 static void doop(Mips * emu, uint32_t op);
 
-Mips *new_mips(uint32_t physMemSize)
+int  mips_isMipsShutdown(Mips *emu)
+{
+        return emu->shutdown;
+}
+
+Mips *mips_new(uint32_t physMemSize)
 {       void *mem;
         Mips *ret;
         if (physMemSize % 4 != 0) 
@@ -33,21 +39,21 @@ Mips *new_mips(uint32_t physMemSize)
 
         /* Init status registers*/
 
-        ret->CP0_Status |= (1 << CP0St_ERL);    /*start in kernel mode with unmapped useg*/
-
+        /*start in kernel mode with unmapped useg*/
+        ret->CP0_Status |= (1 << CP0St_ERL);    
         uart_Reset(ret);
 
         return ret;
 }
 
-void free_mips(Mips * mips)
+void mips_free(Mips * mips)
 {
         free(mips->mem);
         free(mips);
 }
 
 /* bitwise helpers */
-int32_t sext18(uint32_t val)
+static int32_t sext18(uint32_t val)
 {
         if ((val & 0x20000) != 0)
                 return 0xfffc0000 | val;
@@ -61,12 +67,12 @@ enum exc_field { /*Possible Values for the EXC field in the status reg*/
         EXC_Ov    =  12,  EXC_Tr    =  13,  EXC_Watch  =  23,  EXC_MCheck  = 24
 };
 
-void triggerExternalInterrupt(Mips * emu, unsigned intNum) /*not used*/
+void mips_triggerExternalInterrupt(Mips * emu, unsigned intNum) /*not used*/
 {
         emu->CP0_Cause |= ((1 << intNum) & 0x3f) << 10;
 }
 
-void clearExternalInterrupt(Mips * emu, unsigned intNum) /*not used*/
+void mips_clearExternalInterrupt(Mips * emu, unsigned intNum) /*not used*/
 {
         emu->CP0_Cause &= ~(((1 << intNum) & 0x3f) << 10);
 }
@@ -341,7 +347,7 @@ static int handleInterrupts(Mips * emu)
         return 1;
 }
 
-void step_mips(Mips * emu)
+void mips_step(Mips * emu)
 {
         int startInDelaySlot;
         uint32_t opcode;
@@ -352,7 +358,7 @@ void step_mips(Mips * emu)
         /* timer code */
         if (emu->CP0_Count == emu->CP0_Compare) {
                 /* but only do this if interrupts are enabled to save time.*/
-                triggerExternalInterrupt(emu, 5);       /* 5 is the timer int :)*/
+                mips_triggerExternalInterrupt(emu, 5);  /* 5 is the timer int :)*/
         }
 
         if (handleInterrupts(emu))
@@ -908,7 +914,7 @@ static void op_mtc0(Mips * emu, uint32_t op) /*move to co-processor 0*/
         case 11:               /* Compare*/
                 if (sel)
                         goto unhandled;
-                clearExternalInterrupt(emu, 5);
+                mips_clearExternalInterrupt(emu, 5);
                 emu->CP0_Compare = rt;
                 break;
         case 12:               /* Status*/
