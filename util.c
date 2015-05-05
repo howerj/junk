@@ -5,6 +5,7 @@
 #include <signal.h>
 
 #ifdef __WIN32
+#include <windows.h>
 #include <conio.h>
 #elif __unix__
 #include <termios.h>
@@ -33,7 +34,7 @@ void util_warn(char *msg, char *file, unsigned line)
 #ifdef __WIN32
 void util_restoreTermAtSignal(int sig) { UNUSED(sig); }
 int util_ttyraw(void) { return 0; }
-int util_getchraw(void) { return EOF; /*not implemented yet, use CONIO.h*/ }
+int util_getchraw(void) { return _getch(); /*from CONIO.H*/ }
 #elif __unix__
 struct termios oldtermios, newtermios;
 static int terminalSettingsHaveChanged = 0;
@@ -124,10 +125,14 @@ int util_getchraw(void) { return getchar(); }
 
 mutex_type util_mutex_create(void)
 {
-#ifdef __WIN32 
-        return NULL; 
-#elif __unix__
         mutex_type p;
+#ifdef __WIN32 
+        p = calloc(1, sizeof(CRITICAL_SECTION));
+        if(!p)
+                return NULL;
+        InitializeCriticalSection(p);
+        return p; 
+#elif __unix__
         p = calloc(1, sizeof(pthread_mutex_t));
         if(!p)
                 return NULL;
@@ -139,7 +144,8 @@ mutex_type util_mutex_create(void)
 int util_mutex_lock(mutex_type m) 
 {
 #ifdef __WIN32
-        return -1;
+        EnterCriticalSection((LPCRITICAL_SECTION)m);
+        return 0; 
 #elif __unix__
         return pthread_mutex_lock((pthread_mutex_t*)m); 
 #endif
@@ -148,25 +154,29 @@ int util_mutex_lock(mutex_type m)
 int util_mutex_unlock(mutex_type m) 
 { 
 #ifdef __WIN32
-        return -1;
+        LeaveCriticalSection((LPCRITICAL_SECTION)m);
+        return 0;
 #elif __unix__
         return pthread_mutex_unlock((pthread_mutex_t*)m); 
 #endif
 }
 
+/*The thread section needs rewriting, it implements just enough to
+ *get the emulator this util library was written for and nothing more*/
+
 thread_type util_thread_alloc(void)
 {
 #ifdef __WIN32
-        return NULL;
+        return calloc(1,1);
 #else
         return calloc(1, sizeof(pthread_t));
 #endif
 }
 
 int util_thread_new(thread_type thread, void *(*routine) (void*), void *args) 
-{ 
+{  
 #ifdef __WIN32
-        return -1; 
+        return CreateThread(NULL,0,(LPTHREAD_START_ROUTINE)routine,args,0,0)?0:-1;
 #else
         return pthread_create(thread, NULL, routine, args);
 #endif
