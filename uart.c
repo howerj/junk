@@ -35,13 +35,13 @@ enum uart_registers {
         UART_SCR = 7    /* R/W:  */
 };
 
-uint8_t uart_readb(Mips * emu, uint32_t offset)
+uint8_t mips_uart_readb(Mips * emu, uint32_t offset)
 {
         uint8_t ret = uart_ReadReg8(emu, offset);
         return ret;
 }
 
-void uart_writeb(Mips * emu, uint32_t offset, uint8_t v)
+void mips_uart_writeb(Mips * emu, uint32_t offset, uint8_t v)
 {
         uart_WriteReg8(emu, offset, v);
 }
@@ -87,7 +87,7 @@ static void uart_fifoClear(Mips * emu)
 
 /* end Fifo code */
 
-void uart_Reset(Mips * emu)
+void mips_uart_reset(Mips * emu)
 {
         emu->serial.LCR = 3;
         emu->serial.LSR = UART_LSR_TRANSMITTER_EMPTY | UART_LSR_FIFO_EMPTY;
@@ -112,12 +112,12 @@ static void uart_UpdateIrq(Mips * emu)
                 emu->serial.IIR = UART_IIR_NO_INT;
 
         if (emu->serial.IIR != UART_IIR_NO_INT) /*if there is an interrupt pending*/
-                mips_triggerExternalInterrupt(emu, 0);
+                mips_trigger_external_interrupt(emu, 0);
         else 
-                mips_clearExternalInterrupt(emu, 0);
+                mips_clear_external_interrupt(emu, 0);
 }
 
-void uart_RecieveChar(Mips * emu, uint8_t c)
+void mips_uart_receive_char(Mips * emu, uint8_t c)
 {
         uart_fifoPush(emu, c);
         emu->serial.LSR |= UART_LSR_DATA_READY;
@@ -178,7 +178,7 @@ static void uart_WriteReg8(Mips * emu, uint32_t offset, uint8_t x)
         case 0:
                 emu->serial.LSR &= ~UART_LSR_FIFO_EMPTY;
                 if (emu->serial.MCR & (1 << 4)) {       /*LOOPBACK */
-                        uart_RecieveChar(emu, x);
+                        mips_uart_receive_char(emu, x);
                 } else {
                         putchar(x);
                         fflush(stdout);

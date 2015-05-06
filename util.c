@@ -1,3 +1,4 @@
+/*#define _GNU_SOURCE*/
 #include "util.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,6 +12,7 @@
 #include <termios.h>
 #include <pthread.h>
 #include <unistd.h>
+/*#include <dlfcn.h>*/
 #else
 #error "Not Unix or Windows :C"
 #endif
@@ -32,7 +34,7 @@ void util_warn(char *msg, char *file, unsigned line)
 /* Terminal Settings */
 
 #ifdef __WIN32
-void util_restoreTermAtSignal(int sig) { UNUSED(sig); }
+void util_restore_term_at_signal(int sig) { UNUSED(sig); }
 int util_ttyraw(void) { return 0; }
 int util_getchraw(void) { return _getch(); /*from CONIO.H*/ }
 #elif __unix__
@@ -40,11 +42,18 @@ struct termios oldtermios, newtermios;
 static int terminalSettingsHaveChanged = 0;
 static void util_restoreTermAtExit(void)
 {
+/*      // For gprof
+        void (*_mcleanup)(void);
+        _mcleanup = (void (*)(void))dlsym(RTLD_DEFAULT, "_mcleanup");
+        if (_mcleanup == NULL)
+                fprintf(stderr, "Unable to find gprof exit hook\n");
+        else _mcleanup();*/
+
         if(terminalSettingsHaveChanged)
                 tcsetattr(STDIN_FILENO, TCSANOW, &oldtermios);
 }
 
-void util_restoreTermAtSignal(int sig)
+void util_restore_term_at_signal(int sig)
 {       UNUSED(sig);
         util_restoreTermAtExit();
         abort();
@@ -53,6 +62,10 @@ void util_restoreTermAtSignal(int sig)
 int util_ttyraw(void)
 {
         int fd = STDIN_FILENO;
+
+        if(!isatty(fd))
+                return 0;
+
         /* Set terminal mode as follows:
            Noncanonical mode - turn off ICANON.
            Turn off signal-generation (ISIG)
@@ -111,7 +124,7 @@ int util_ttyraw(void)
 
         atexit(util_restoreTermAtExit);
 
-        if(signal(SIGTERM, util_restoreTermAtSignal))
+        if(signal(SIGTERM, util_restore_term_at_signal))
                 FATAL("Installation of signal handler failed.");
 
         return 0;

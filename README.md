@@ -3,6 +3,12 @@
 This is not the original project but a personal copy of it.  
 The original is at <https://github.com/andrewchambers/cmips>.
 
+I have changed the API, ported the VM to Windows and restructured
+the project (which are all minor things compared to the original
+implementation). 
+
+The original README.md (with a few modifications) is below:
+
 # cmips
 
 Tiny MIPS 4kc emulator (smallest and easiest emulator to hack on that I
@@ -15,8 +21,6 @@ Let me know if it has helped you in any way, I appreciate any feedback.
 # Building and Running
 
 How to compile and run the emulator.
-
-![example gif](example.gif)
 
 I have not put my custom Linux kernel board support code online yet,
 so I included a precompiled kernel in the images folder. I have tested
@@ -63,8 +67,9 @@ I used creduce and csmith as a way of fuzzing my emulator initially too.
 
 # Misc
 
-The disgen.py program is just a python script which converts a JSON representation of 
-the opcodes into a giant switch case for disassembling and executing.
+The disgen.py program is just a python script which converts a JSON
+representation of the opcodes into a giant switch case for disassembling
+and executing.
 
 # Info
 

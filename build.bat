@@ -8,6 +8,6 @@ tcc -Wall -c main.c
 tcc -Wall -c srec.c
 tcc -Wall -c uart.c
 tcc -Wall -D__WIN32 -c util.c
-tcc -Wall emu.o main.o srec.o uart.o util.o -o emu.exe
+tcc -Wall emu.o main.o srec.o uart.o util.o -o mips.exe
 REM To run the emulator:
-REM emu.exe vmlinux.srec
+REM mips.exe vmlinux.srec

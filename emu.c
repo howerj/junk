@@ -15,7 +15,7 @@ enum status_registers_bits {
 
 static void doop(Mips * emu, uint32_t op);
 
-int  mips_isMipsShutdown(Mips *emu)
+int  mips_is_vm_shutdown(Mips *emu)
 {
         return emu->shutdown;
 }
@@ -41,7 +41,7 @@ Mips *mips_new(uint32_t physMemSize)
 
         /*start in kernel mode with unmapped useg*/
         ret->CP0_Status |= (1 << CP0St_ERL);    
-        uart_Reset(ret);
+        mips_uart_reset(ret);
 
         return ret;
 }
@@ -67,12 +67,12 @@ enum exc_field { /*Possible Values for the EXC field in the status reg*/
         EXC_Ov    =  12,  EXC_Tr    =  13,  EXC_Watch  =  23,  EXC_MCheck  = 24
 };
 
-void mips_triggerExternalInterrupt(Mips * emu, unsigned intNum) /*not used*/
+void mips_trigger_external_interrupt(Mips * emu, unsigned intNum) /*not used*/
 {
         emu->CP0_Cause |= ((1 << intNum) & 0x3f) << 10;
 }
 
-void mips_clearExternalInterrupt(Mips * emu, unsigned intNum) /*not used*/
+void mips_clear_external_interrupt(Mips * emu, unsigned intNum) /*not used*/
 {
         emu->CP0_Cause &= ~(((1 << intNum) & 0x3f) << 10);
 }
@@ -236,7 +236,7 @@ static uint8_t readVirtByte(Mips * emu, uint32_t addr)
                 return 0;
 
         if (paddr >= UARTBASE && paddr <= UARTBASE + UARTSIZE)
-                return uart_readb(emu, paddr - UARTBASE);
+                return mips_uart_readb(emu, paddr - UARTBASE);
 
         offset = paddr & 3;
 
@@ -260,7 +260,7 @@ static void writeVirtByte(Mips * emu, uint32_t addr, uint8_t val)
                 return;
 
         if (paddr >= UARTBASE && paddr <= UARTBASE + UARTSIZE) {
-                uart_writeb(emu, paddr - UARTBASE, val);
+                mips_uart_writeb(emu, paddr - UARTBASE, val);
                 return;
         }
 
@@ -302,8 +302,8 @@ static void handleException(Mips * emu, int inDelaySlot)
                 }
 
                 if (exccode == EXC_TLBL || exccode == EXC_TLBS) {
-                        /*printf("tlb exception %x\n",emu->CP0_Epc);*/
-                        /*XXX this seems inverted? bug in also qemu? test with these cases reversed after booting.*/
+                        /*XXX This seems inverted? Bug in Qemu also? 
+                         * Test with these cases reversed after booting.*/
                         if (!emu->tlb.exceptionWasNoMatch)
                                 offset = 0x180;
                         else 
@@ -333,9 +333,8 @@ static void handleException(Mips * emu, int inDelaySlot)
 static int handleInterrupts(Mips * emu)
 {
         /*if interrupts disabled or ERL or EXL set*/
-        if ((emu->CP0_Status & 1) == 0 || (emu->CP0_Status & ((1 << 1) | (1 << 2)))) {
+        if ((emu->CP0_Status & 1) == 0 || (emu->CP0_Status & ((1 << 1) | (1 << 2))))
                 return 0;       /* interrupts disabled*/
-        }
 
         if (!(emu->CP0_Cause & emu->CP0_Status & 0xfc00))
                 return 0;       /* no pending interrupts*/
@@ -356,10 +355,9 @@ void mips_step(Mips * emu)
 
         emu->CP0_Count++;
         /* timer code */
-        if (emu->CP0_Count == emu->CP0_Compare) {
-                /* but only do this if interrupts are enabled to save time.*/
-                mips_triggerExternalInterrupt(emu, 5);  /* 5 is the timer int :)*/
-        }
+        /* but only do this if interrupts are enabled to save time.*/
+        if (emu->CP0_Count == emu->CP0_Compare) 
+                mips_trigger_external_interrupt(emu, 5);  /* 5 is the timer int :)*/
 
         if (handleInterrupts(emu))
                 return;
@@ -475,9 +473,8 @@ static void op_lwl(Mips * emu, uint32_t op)
         uint32_t wordVal = readVirtWord(emu, addr & (~3));
         uint32_t offset = addr % 4;
         uint32_t result;
-        if (emu->exceptionOccured) { /*from readVirtWord*/
+        if (emu->exceptionOccured) /*from readVirtWord*/
                 return;
-        }
 
         switch (offset) {
         case 0: result = wordVal;                                break;
@@ -542,20 +539,18 @@ static void op_lb(Mips * emu, uint32_t op)
 {
         uint32_t addr = ((int32_t) getRs(emu, op) + (int16_t) getImm(op));
         int8_t v = (int8_t) readVirtByte(emu, addr);
-        if (emu->exceptionOccured) {
+        if (emu->exceptionOccured)
                 return;
-        }
         setRt(emu, op, (int32_t) v);
 }
 
 static void op_beq(Mips * emu, uint32_t op)
 {
         int32_t offset = sext18(getImm(op) * 4);
-        if (getRs(emu, op) == getRt(emu, op)) {
+        if (getRs(emu, op) == getRt(emu, op))
                 emu->delaypc = (int32_t) (emu->pc + 4) + offset;
-        } else {
+        else
                 emu->delaypc = emu->pc + 8;
-        }
         emu->inDelaySlot = 1;
 }
 
@@ -655,9 +650,8 @@ static void op_swr(Mips * emu, uint32_t op)
         uint32_t wordVal = readVirtWord(emu, addr & (~3));
         uint32_t offset = addr & 3;
         uint32_t result;
-        if (emu->exceptionOccured) { /*from readVirtWord*/
+        if (emu->exceptionOccured) /*from readVirtWord*/
                 return;
-        }
 
         switch (offset) {
         case 3: result = rtVal;                                                 break;
@@ -845,11 +839,12 @@ static void op_mfc0(Mips * emu, uint32_t op)
                 retval = emu->CP0_Epc;
                 break;
         case 15:
-                retval = 0x00018000;    /*processor id, just copied qemu 4kc*/
+                retval = 0x00018000; /*processor id, just copied qemu 4kc*/
                 break;
         case 16:
                 if (sel == 0) {
-                        retval = 0x80008082;    /* XXX cacheability fields shouldnt be hardcoded as writeable*/
+                /* XXX cacheability fields shouldnt be hardcoded as writeable*/
+                        retval = 0x80008082; 
                         break;
                 }
                 if (sel == 1) {
@@ -914,7 +909,7 @@ static void op_mtc0(Mips * emu, uint32_t op) /*move to co-processor 0*/
         case 11:               /* Compare*/
                 if (sel)
                         goto unhandled;
-                mips_clearExternalInterrupt(emu, 5);
+                mips_clear_external_interrupt(emu, 5);
                 emu->CP0_Compare = rt;
                 break;
         case 12:               /* Status*/
@@ -1156,9 +1151,8 @@ static void op_movz(Mips * emu, uint32_t op)
 
 static void op_movn(Mips * emu, uint32_t op)
 {
-        if (getRt(emu, op) != 0) {
+        if (getRt(emu, op))
                 setRd(emu, op, getRs(emu, op));
-        }
 }
 
 static void op_mul(Mips * emu, uint32_t op)

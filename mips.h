@@ -15,23 +15,20 @@ extern "C" {
 
 typedef struct _Mips Mips;
 
-Mips *mips_new(uint32_t physMemSize);
-void mips_free(Mips * mips);
-void mips_step(Mips * emu);
-int  mips_isMipsShutdown(Mips *emu);
-void mips_triggerExternalInterrupt(Mips *emu, unsigned intNum);
-void mips_clearExternalInterrupt(Mips *emu, unsigned intNum);
+int     mips_is_vm_shutdown             (Mips *emu);
+Mips   *mips_new                        (uint32_t physMemSize);
+void    mips_clear_external_interrupt   (Mips *emu, unsigned intNum);
+void    mips_free                       (Mips * mips);
+void    mips_step                       (Mips * emu);
+void    mips_trigger_external_interrupt (Mips *emu, unsigned intNum);
 
-int mips_loadSrecFromFile(Mips *emu, char *fname);
-int mips_loadSrecFromString(Mips *emu, char *srec);
+int     mips_load_srec_from_file        (Mips *emu, char *fname);
+int     mips_load_srec_from_string      (Mips *emu, char *srec);
 
-void uart_Reset(Mips * emu);
-
-uint32_t uart_read(Mips * emu, uint32_t offset);
-void uart_write(Mips * emu, uint32_t offset, uint32_t v);
-uint8_t uart_readb(Mips * emu, uint32_t offset);
-void uart_writeb(Mips * emu, uint32_t offset, uint8_t v);
-void uart_RecieveChar(Mips * emu, uint8_t c);
+uint8_t mips_uart_readb        (Mips * emu, uint32_t offset);
+void    mips_uart_receive_char (Mips * emu, uint8_t c);
+void    mips_uart_reset        (Mips * emu);
+void    mips_uart_writeb       (Mips * emu, uint32_t offset, uint8_t v);
 
 #ifdef __cplusplus
 }

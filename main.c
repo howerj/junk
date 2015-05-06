@@ -9,7 +9,7 @@ void *runEmulator(void *p)
 {
         Mips *emu = (Mips *) p;
 
-        while (!mips_isMipsShutdown(emu)) {
+        while (!mips_is_vm_shutdown(emu)) {
                 unsigned i;
 
                 if (util_mutex_lock(emu_mutex))
@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
         if (!(emu = mips_new(64 * 1024 * 1024))) 
                 FATAL("allocating emu failed.");
 
-        if (mips_loadSrecFromFile(emu, argv[1]) != 0)
+        if (mips_load_srec_from_file(emu, argv[1]) != 0)
                 FATAL("failed loading srec");
 
         if (util_ttyraw())
@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
                 if (util_mutex_lock(emu_mutex))
                         FATAL("mutex failed lock, exiting");
 
-                uart_RecieveChar(emu, c);
+                mips_uart_receive_char(emu, c);
 
                 if (util_mutex_unlock(emu_mutex))
                         FATAL("mutex failed unlock, exiting");

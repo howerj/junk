@@ -1,5 +1,6 @@
 #include "mips.h"
 #include "internal.h"
+#include "util.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -24,7 +25,7 @@ static int fisEof(void *ud)
         return feof((FILE *) ud);
 }
 
-int mips_loadSrecFromFile(Mips * emu, char *fname)
+int mips_load_srec_from_file(Mips * emu, char *fname)
 {
         SrecLoader loader;
         void *ud = fopen(fname, "r");
@@ -57,7 +58,7 @@ static int sisEof(void *ud)
         return (**(char **)ud) == 0;
 }
 
-int mips_loadSrecFromString(Mips * emu, char *srec)
+int mips_load_srec_from_string(Mips * emu, char *srec)
 {
         void *ud = (void *)&srec;
         int ret;
@@ -179,39 +180,27 @@ int mips_loadSrec(Mips * emu, SrecLoader * loader)
 
         while (!loader->isEof(loader->userdata)) {
                 switch (srecReadType(loader)) {
-
                 case -1: break; /*EOF*/
                 case 0:  srecSkipToNextLine(loader); break;
                 case 3:
-                        if (srecReadByte(loader, &count)) {
-                                fputs("srecLoader: failed to parse bytecount.\n", stdout);
-                                return 1;
-                        }
-                        if (srecReadAddress(loader, &addr)) {
-                                fputs("srecLoader: failed to parse address.\n", stdout);
-                                return 1;
-                        }
-                        if (srecLoadData(loader, emu, addr, count - 5)) {
-                                fputs("srecLoader: failed to load data.\n", stdout);
-                                return 1;
-                        }
+                        if (srecReadByte(loader, &count))
+                                FATAL("srecLoader: failed to parse bytecount.\n");
+                        if (srecReadAddress(loader, &addr))
+                                FATAL("srecLoader: failed to parse address.\n");
+                        if (srecLoadData(loader, emu, addr, count - 5))
+                                FATAL("srecLoader: failed to load data.\n");
                         srecSkipToNextLine(loader);
                         break;
                 case 7:
-                        if (srecReadByte(loader, &count)) {
-                                fputs("srecLoader: failed to parse bytecount.\n", stdout);
-                                return 1;
-                        }
-                        if (srecReadAddress(loader, &addr)) {
-                                fputs("srecLoader: failed to parse address.\n", stdout);
-                                return 1;
-                        }
+                        if (srecReadByte(loader, &count))
+                                FATAL("srecLoader: failed to parse bytecount.\n");
+                        if (srecReadAddress(loader, &addr))
+                                FATAL("srecLoader: failed to parse address.\n");
                         emu->pc = addr;
                         srecSkipToNextLine(loader);
                         break;
                 default:
-                        fputs("Bad/Unsupported srec type\n", stdout);
-                        return 1;
+                        FATAL("Bad/Unsupported srec type\n");
                 }
         }
 
