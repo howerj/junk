@@ -185,8 +185,6 @@ static node *term(prolog_obj_t *o)
 static node *rule(prolog_obj_t *o)
 {       node *x = new_node(o, RULE);
         PDEBUG(x->type, "rule");
-        if(o->sym == PERIOD)
-                return x;
         x->o1 = term(o);
         if(o->sym == PERIOD)
                 return x;
@@ -217,7 +215,7 @@ static node *queryorrule(prolog_obj_t *o)
                 } else {
                         x->o1 = rule(o);
                 }
-                next_sym(o);
+                RETRY: next_sym(o); if(o->sym == PERIOD) goto RETRY;
         }
         return x;
 }
