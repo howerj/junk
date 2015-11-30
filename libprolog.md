@@ -3,8 +3,9 @@
 # User and programmer manual.
 ## Introduction
 
-This is a small [prolog][] interpreter written in C, it is designed to
-be callable from other programs but also includes a function which implements
-a basic interpreter for you so you can test the library out.
 
-[prolog][]: FIND REF
+This is a small [prolog][] interpreter written in C, or it will be, it is
+pre-alpha.
+
+[prolog]: <https://en.wikipedia.org/wiki/Prolog>
+
