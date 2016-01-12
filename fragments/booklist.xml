@@ -1,0 +1,21 @@
+<booklist>
+   <book type="technical">
+      <author>Book 1 author 1</author>
+      <author>Book 1 author 2</author>
+      <title>Book 1 title</title>
+      <isbn>Book1ISBN</isbn>
+   </book>
+   <book type="fiction">
+      <author>Book 2 author 1</author>
+      <author>Book 2 author 2</author>
+      <title>Book 2 title</title>
+      <isbn>Book2ISBN</isbn>
+   </book>
+   <book type="technical">
+      <author>Book 3 author 1</author>
+      <author>Book 3 author 2</author>
+      <author>Book 3 author 3</author>
+      <title>Book 3 title</title>
+      <isbn>Book3ISBN</isbn>
+   </book>
+</booklist>
