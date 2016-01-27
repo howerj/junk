@@ -1,8 +1,8 @@
-TARGET=bnf
+TARGET=ebnf
 
-all: bnf
+all: $(TARGET)
 
-bnf: bnf.c
+$(TARGET): $(TARGET).c
 	$(CC) $(CFLAGS) $^ -o $@
 
 clean:
