@@ -3,3 +3,6 @@
 *.so
 *.a
 ebnf
+core
+vgcore.*
+*.log
