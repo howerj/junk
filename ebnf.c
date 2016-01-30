@@ -9,12 +9,15 @@
  *  @todo Add in escape characters
  *  @todo Allow parsing of binary files
  *  @todo Add spaces to the grammar
+ *  @todo Build up parse tree
+ *  @todo Clean up and simplify code
  *  */
 #include <assert.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <setjmp.h>
 
 #define TOKEN_LEN	(256)
 
@@ -34,27 +37,61 @@ enum {
 	END = EOF
 };
 
-static FILE *in = NULL;
-static char token[TOKEN_LEN] = { 0 }, token_id = LEXER_ERROR;
-static int unget = 0, idx = 0, line = 1;
+typedef struct parse_state {
+	FILE *in;
+	unsigned line, unget, idx, debug, jmpbuf_set;
+	int token_id;
+	char token[TOKEN_LEN];
+	jmp_buf jb;
+} parse_state;
 
 /* util */
+void pdepth(unsigned depth)
+{
+	while(depth--)
+		putchar('\t');
+}
 
-#define fatal(MSG) _fatal((MSG), __LINE__)
-int _fatal(char *msg, unsigned iline) { 
-	fprintf(stderr, "%u,%s => %c %s\n", line, msg, token_id, 
-			token_id == ID || token_id == TERMINAL ? token : ""); 
+void ptoken(parse_state *ps, FILE *out)
+{
+	int token = ps->token_id;
+	fprintf(out, "%s ", ps->unget ? "unget-token" : "token");
+	if(token == ID)
+		fprintf(out, "<ID %s>", ps->token);
+	else if(token == TERMINAL)
+		fprintf(out, "<TERMINAL \"%s\">", ps->token);
+	else if(token == END)
+		fprintf(out, "<EOF>");
+	else
+		fputc(token, out);
+	fputc('\n', out);
+}
+
+#define failed(PS, MSG) _failed((PS), (MSG))
+int _failed(parse_state *ps, char *msg) {
+	fprintf(stderr, "syntax error on line %u\nexpected\n\t%s\ngot\n\t", ps->line, msg);
+	ptoken(ps, stderr);
+	if(ps->jmpbuf_set)
+		longjmp(ps->jb, 1);
 	abort(); 
 	return 0; 
 }
 
+void debug(parse_state *ps, char *msg, unsigned depth) 
+{ 
+	if(ps->debug) {
+		pdepth(depth);
+		printf("%s\n", msg);
+	}
+}
+
 /* lexer */
 
-void untoken(int token) {
-	if(unget)
-		fatal("token already pushed back");
-	unget = 1;
-	token_id = token;
+void untoken(parse_state *ps, int token) {
+	if(ps->unget)
+		failed(ps, "token already pushed back");
+	ps->unget = 1;
+	ps->token_id = token;
 }
 
 int digit(char c)  { /* digit = "0" | ... | "9" */
@@ -73,74 +110,84 @@ int character(char c) { /* character = letter | digit | symbol | "_" ; */
 	return digit(c) || letter(c) || symbol(c) || c == '_';
 }
 
-int identifier(char c) { /* identifier = letter , { letter | digit | "_" } ; */
-	idx = 0;
-	token[0] = c;
+int identifier(parse_state *ps, char c) { /* identifier = letter , { letter | digit | "_" } ; */
+	ps->idx = 0;
+	ps->token[0] = c;
 	for(;;) {
-		c = getc(in);
+		c = getc(ps->in);
+		assert(ps->idx < TOKEN_LEN - 1);
 		if(letter(c) || digit(c) || c == '_') {
-			token[++idx] = c;
+			ps->token[++(ps->idx)] = c;
 		} else {
-			ungetc(c, in);
-			token[++idx] = 0;
+			ungetc(c, ps->in);
+			ps->token[++(ps->idx)] = 0;
 			return ID;
 		}
 	}
 }
 
-int terminal(char expect) { 
-	/* terminal	= "'" , character , { character } , "'" 
-			| '"' , character , { character } , '"' ; */
-	int c;
-	idx = 0;
+int terminal(parse_state *ps, char expect) { 
+	ps->idx = 0;
 	for(;;) {
-		c = getc(in);
+		int c = getc(ps->in);
+		assert(ps->idx < TOKEN_LEN - 1);
 		if(c == expect) {
-			token[idx] = 0;
+			ps->token[ps->idx] = 0;
 			return TERMINAL;
 		} else if(character(c)) { 
-			token[idx++] = c;
+			ps->token[(ps->idx)++] = c;
 		} else {
-			fatal("incorrect terminal");
+			failed(ps, "terminal = \"'\" character , { character } , \"'\""
+				   " | '\"' , character , { character } , '\"' ;");
 		}
 	}
 }
 
-int lexer(void)    
+int lexer(parse_state *ps, unsigned depth)
 {
 	int c;
-	if(unget) {
-		unget = 0;
-		return token_id;
+	if(ps->unget) {
+		ps->unget = 0;
+		if(ps->debug) {
+			pdepth(depth);
+			ptoken(ps, stdout);
+		}
+		return ps->token_id;
 	}
-again:	c = getc(in);
+again:	c = getc(ps->in);
 	switch(c) {
-	case '\n': line++;
+	case '\n': ps->line++;
 	case ' ':
 	case '\t': goto again;	
-	case '[': return token_id = LSB;
-	case ']': return token_id = RSB;
-	case '{': return token_id = LBR;
-	case '}': return token_id = RBR;
-	case '(': return token_id = LPAR; /** @todo add in "(*" and "*)" comments here*/
-	case ')': return token_id = RPAR;
-	case '<': return token_id = LBB;
-	case '>': return token_id = RBB;
-	case '=': return token_id = EQ;
-	case '|': return token_id = PIPE;
-	case '.': return token_id = PERIOD;
-	case ',': return token_id = COMMA;
-	case ';': return token_id = SEMI;
-	case EOF: return token_id = END;
+	case '[':  ps->token_id = LSB;	break;
+	case ']':  ps->token_id = RSB;	break;
+	case '{':  ps->token_id = LBR;	break;
+	case '}':  ps->token_id = RBR;	break;
+	/** @todo add in "(*" and "*)" comments here*/
+	case '(':  ps->token_id = LPAR; 	break;
+	case ')':  ps->token_id = RPAR;	break;
+	case '<':  ps->token_id = LBB;	break;
+	case '>':  ps->token_id = RBB;	break;
+	case '=':  ps->token_id = EQ;	break;
+	case '|':  ps->token_id = PIPE;	break;
+	case '.':  ps->token_id = PERIOD;	break;
+	case ',':  ps->token_id = COMMA;	break;
+	case ';':  ps->token_id = SEMI;	break;
+	case EOF:  ps->token_id = END;	break;
 	case '\'': 
-	case '"': 
-		return token_id = terminal(c);
+	case '"':  ps->token_id = terminal(ps, c); break;
 	default:
-		if(letter(c)) 
-			return token_id = identifier(c);
-		goto fail;
+		if(letter(c)) {
+			ps->token_id = identifier(ps, c);
+			break;
+		}
+		failed(ps, "identifier = letter , { letter | digit | '_' } ;");
 	}
-fail:	return fatal("invalid token");
+	if(ps->debug) {
+		pdepth(depth);
+		ptoken(ps, stdout);
+	}
+	return ps->token_id;
 }
 
 /*parser*/
@@ -149,114 +196,144 @@ enum { FAIL, GRAMMAR, RULE, LHS, RHS, TERM, GROUPING, OPTIONAL, REPETITION };
 
 /* make struct for parsed type and duplicate token */
 
-int lhs(void) { /* identifier */ 
-	if(token_id == ID)
+int lhs(parse_state *ps, unsigned depth) 
+{ 
+	/* lhs = identifier */
+	debug(ps, "lhs", depth);
+	if(ps->token_id == ID)
 		return LHS;
-fail: return fatal("lhs");
+	return failed(ps, "lhs = identifier ;");
 }
 
-int grouping(void) { /* "(" , rhs , ")"  */ 
-	if(token_id == LPAR)
-		lexer();
+int rhs(parse_state *ps, unsigned depth);
+
+int grouping(parse_state *ps, unsigned depth) 
+{ 
+	if(ps->token_id == LPAR)
+		lexer(ps, depth);
 	else
 		return FAIL;
-	if(rhs() == RHS)
-		lexer();
+	debug(ps, "grouping", depth);
+	if(rhs(ps, depth+1) == RHS)
+		lexer(ps, depth);
 	else
 		goto fail;
-	if(token_id == RPAR)
+	if(ps->token_id == RPAR)
 		return GROUPING;
-fail:	return fatal("grouping");
+fail:	return failed(ps, "grouping = '(' , rhs , ')' ;");
 }
 
-int optional(void) { /* "[" , rhs , "]" */  
-	if(token_id == LSB)
-		lexer();
+int optional(parse_state *ps, unsigned depth) 
+{ 
+	if(ps->token_id == LSB)
+		lexer(ps, depth);
 	else
 		return FAIL;
-	if(rhs() == RHS)
-		lexer();
+	debug(ps, "optional", depth);
+	if(rhs(ps, depth+1) == RHS)
+		lexer(ps, depth);
 	else
 		goto fail;
-	if(token_id == RSB)
+	if(ps->token_id == RSB)
 		return GROUPING;
-fail:	return fatal("optional");
+fail:	return failed(ps, "optional = '[' , rhs , ']' ;");
 }
 
-int repetition(void) { /* "{" , rhs , "}" */ 
-	if(token_id == LBR)
-		lexer();
+int repetition(parse_state *ps, unsigned depth) { 
+	/* repetition =  "{" , rhs , "}" ; */ 
+	if(ps->token_id == LBR)
+		lexer(ps, depth);
 	else
 		return FAIL;
-	if(rhs() == RHS)
-		lexer();
+	debug(ps, "repetition", depth);
+	if(rhs(ps, depth+1) == RHS)
+		lexer(ps, depth);
 	else
 		goto fail;
-	if(token_id == RBR)
+	if(ps->token_id == RBR)
 		return REPETITION;
-fail:	return fatal("repetition");
+fail:	return failed(ps, "repetition = '{' , rhs , '}' ;");
 }
 
-int term(void) {
-	if(token_id == ID || token_id == TERMINAL)
+int term(parse_state *ps, unsigned depth) 
+{
+	debug(ps, "term", depth);
+	if(ps->token_id == ID || ps->token_id == TERMINAL)
 		return TERM;
-	if(grouping() == GROUPING)
+	if(grouping(ps, depth+1) == GROUPING)
 		return TERM;
-	if(optional() == OPTIONAL)
+	if(optional(ps, depth+1) == OPTIONAL)
 		return TERM;
-	if(repetition() == REPETITION)
+	if(repetition(ps, depth+1) == REPETITION)
 		return TERM;
-fail:	return fatal("term");
+	return failed(ps, "term = identifier | grouping | optional | repetition ;");
 }
 
-int rhs(void) {
-       	/* rhs =   term 
-	 *       | term , "|" , rhs
-	 *       | term , "," , rhs ;  */ 
-again:	if(term() == TERM)
-		lexer();
+int rhs(parse_state *ps, unsigned depth) {
+again:	debug(ps, "rhs", depth);
+	if(term(ps, depth+1) == TERM)
+		lexer(ps, depth);
 	else
 		goto fail;
-	if(token_id == PIPE || token_id == COMMA) {
-		lexer();
+	if(ps->token_id == PIPE || ps->token_id == COMMA) {
+		lexer(ps, depth);
 		goto again;
 	}
-	untoken(token_id);
+	untoken(ps, ps->token_id);
 	return RHS;
-fail:	return fatal("rhs");
+fail:	return failed(ps, "rhs = term | term , '|' rhs | term , ',' rhs ;");
 }
 
-int rule(void) { /* rule = lhs , "=" , rhs , ";" ; */
-	if(lhs() == LHS)
-		lexer();
+int rule(parse_state *ps, unsigned depth) { 
+	debug(ps, "rule", depth);
+	if(lhs(ps, depth+1) == LHS)
+		lexer(ps, depth);
 	else
 		goto fail;
-	if(token_id == EQ)
-		lexer();
+	if(ps->token_id == EQ)
+		lexer(ps, depth);
 	else
 		goto fail;
-	if(rhs() == RHS)
-		lexer();
+	if(rhs(ps, depth+1) == RHS)
+		lexer(ps, depth);
 	else
 		goto fail;
-	if(token_id == SEMI)
+	if(ps->token_id == SEMI)
 		return RULE;
-fail:	return fatal("rule");
+fail:	return failed(ps, "rule = lhs , '=' , rhs , ';' ;");
 }
 
-int grammar(void) { /* grammar = { rule } ; */ 
+int grammar(parse_state *ps, unsigned depth) 
+{
 	for(;;) {
-		lexer();
-		if(token_id == END)
+		lexer(ps, depth);
+		if(ps->token_id == END)
 			return GRAMMAR;
-		if(rule() != RULE)
+		if(rule(ps, depth + 1) != RULE)
 			goto fail;
 		
 	}
-fail:	return fatal("grammar");
+fail:	return failed(ps, "grammar = EOF | { rule } ; EOF");
+}
+
+int parse_ebnf(parse_state *ps, FILE *in, int debug_on) 
+{
+	assert(ps && in);
+	memset(ps, 0, sizeof(*ps));
+	ps->in = in;
+	ps->debug = debug_on;
+	ps->line = 1;
+	if(setjmp(ps->jb)) {
+		ps->jmpbuf_set = 0;
+		return -1;
+	}
+	ps->jmpbuf_set = 1;
+	return grammar(ps, 0) == GRAMMAR;
 }
 
 /*generate C directory or compile to VM, and spit out program and VM? */
+
+static parse_state ps;
 
 int main(int argc, char **argv) {
 	if(argc < 2) {
@@ -265,23 +342,12 @@ int main(int argc, char **argv) {
 	}
 
 	while(++argv, --argc) { 
-		int t;
-		in = fopen(argv[0], "rb");
+		FILE *in = fopen(argv[0], "rb");
 		if(!in) {
 			perror(argv[0]);
 			return 1;
 		}
-		grammar();
-		/*
-		while((t = lexer()) != END) {
-			if(t == ID) {
-				printf("<ID %s>\n", token);
-			} else if(t == TERMINAL) {
-				printf("<TERMINAL %s>\n", token);
-			} else {
-				printf("%c\t%d\n", t, t);
-			}
-		}*/
+		parse_ebnf(&ps, in, 1);
 		fclose(in);
 	}
 

@@ -19,15 +19,18 @@ identifier = letter , { letter | digit | "_" } ;
 terminal = "'" , character , { character } , "'" 
 	 | '"' , character , { character } , '"' ;
  
-lhs = identifier ;
-rhs = identifier
+lhs = identifier ; 
+
+term = identifier
      | terminal
      | "[" , rhs , "]"
      | "{" , rhs , "}"
-     | "(" , rhs , ")"
-     | rhs , "|" , rhs
-     | rhs , "," , rhs ;
+     | "(" , rhs , ")" ;
+
+rhs = term      
+     | term , "|" , rhs
+     | term , "," , rhs ;
 
 rule = lhs , "=" , rhs , ";" ;
-grammar = { rule } ;
+grammar = EOF | { rule } , EOF ;
 

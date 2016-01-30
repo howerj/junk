@@ -1,5 +1,6 @@
 TARGET=ebnf
-
+CC=gcc
+CFLAGS=-Wall -Wextra -std=c99 
 all: $(TARGET)
 
 $(TARGET): $(TARGET).c
