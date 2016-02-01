@@ -41,32 +41,28 @@ foreach my $book (@{$books->{book}}) {
 
 
 # Writing
-
-use XML::Writer;
-use IO::File;
-
-## Open output file
-my $output_file = "myfile.xml";
-my $output = new IO::File(">$output_file");
-
-my $writer = new XML::Writer(OUTPUT=>$output, DATA_MODE=>1);
-
-# Open a <record> element
-$writer->startTag("record");
-
-# Create a <title> element, with content
-$writer->startTag("title");
-$writer->characters("Snow Crash");
-$writer->endTag("title");
-
-$writer->startTag("title");
-$writer->characters("1984");
-$writer->endTag("title");
-
-# Create other elements...
-
-# Close a <record> element
-$writer->endTag("record");
-
-$writer->end();
-$output->close();
+#
+#use XML::Writer;
+#use IO::File;
+#
+### Open output file
+#my $output_file = "myfile.xml";
+#my $output = new IO::File(">$output_file");
+#
+#my $writer = new XML::Writer(OUTPUT=>$output, DATA_MODE=>1);
+#
+## Open a <record> element
+#$writer->startTag("record");
+#
+## Create a <title> element, with content
+#$writer->startTag("title");
+#$writer->characters("Snow Crash");
+#$writer->endTag("title");
+#
+## Create other elements...
+#
+## Close a <record> element
+#$writer->endTag("record");
+#
+#$writer->end();
+#$output->close();
