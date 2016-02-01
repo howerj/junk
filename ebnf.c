@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <setjmp.h>
+#include <stdarg.h>
 
 #define TOKEN_LEN	(256)
 
@@ -46,13 +47,24 @@ typedef struct parse_state {
 } parse_state;
 
 /* util */
-void pdepth(unsigned depth)
+
+static char *pstrdup(const char *s)
+{
+	assert(s);
+	char *str;
+	if (!(str = malloc(strlen(s) + 1)))
+		return NULL;
+	strcpy(str, s);
+	return str;
+}
+
+static void pdepth(unsigned depth)
 {
 	while(depth--)
 		putchar('\t');
 }
 
-void ptoken(parse_state *ps, FILE *out)
+static void ptoken(parse_state *ps, FILE *out)
 {
 	int token = ps->token_id;
 	fprintf(out, "%s ", ps->unget ? "unget-token" : "token");
@@ -68,7 +80,8 @@ void ptoken(parse_state *ps, FILE *out)
 }
 
 #define failed(PS, MSG) _failed((PS), (MSG))
-int _failed(parse_state *ps, char *msg) {
+static void *_failed(parse_state *ps, char *msg) 
+{
 	fprintf(stderr, "syntax error on line %u\nexpected\n\t%s\ngot\n\t", ps->line, msg);
 	ptoken(ps, stderr);
 	if(ps->jmpbuf_set)
@@ -77,7 +90,7 @@ int _failed(parse_state *ps, char *msg) {
 	return 0; 
 }
 
-void debug(parse_state *ps, char *msg, unsigned depth) 
+static void debug(parse_state *ps, char *msg, unsigned depth) 
 { 
 	if(ps->debug) {
 		pdepth(depth);
@@ -87,30 +100,36 @@ void debug(parse_state *ps, char *msg, unsigned depth)
 
 /* lexer */
 
-void untoken(parse_state *ps, int token) {
+static void untoken(parse_state *ps, int token) 
+{
 	if(ps->unget)
 		failed(ps, "token already pushed back");
 	ps->unget = 1;
 	ps->token_id = token;
 }
 
-int digit(char c)  { /* digit = "0" | ... | "9" */
+static int digit(char c)  
+{	/* digit = "0" | ... | "9" */
 	return isdigit(c); 
 }
 
-int letter(char c) {  /* digit = "A" | ... | "Z" | "a" ... "z" */
+static int letter(char c) 
+{ 	/* digit = "A" | ... | "Z" | "a" ... "z" */
 	return isalpha(c); 
 }
 
-int symbol(char c) { /* symbol = ... */
+static int symbol(char c) 
+{	/* symbol = ... */
 	return !!strchr("[]{}()<>'\"=|.,;", c); 
 }
 
-int character(char c) { /* character = letter | digit | symbol | "_" ; */
+static int character(char c) 
+{	/* character = letter | digit | symbol | "_" ; */
 	return digit(c) || letter(c) || symbol(c) || c == '_';
 }
 
-int identifier(parse_state *ps, char c) { /* identifier = letter , { letter | digit | "_" } ; */
+static int identifier(parse_state *ps, char c) 
+{	/* identifier = letter , { letter | digit | "_" } ; */
 	ps->idx = 0;
 	ps->token[0] = c;
 	for(;;) {
@@ -126,7 +145,7 @@ int identifier(parse_state *ps, char c) { /* identifier = letter , { letter | di
 	}
 }
 
-int terminal(parse_state *ps, char expect) { 
+static int terminal(parse_state *ps, char expect) { 
 	ps->idx = 0;
 	for(;;) {
 		int c = getc(ps->in);
@@ -143,7 +162,7 @@ int terminal(parse_state *ps, char expect) {
 	}
 }
 
-int lexer(parse_state *ps, unsigned depth)
+static int lexer(parse_state *ps, unsigned depth)
 {
 	int c;
 	if(ps->unget) {
@@ -192,131 +211,224 @@ again:	c = getc(ps->in);
 
 /*parser*/
 
-enum { FAIL, GRAMMAR, RULE, LHS, RHS, TERM, GROUPING, OPTIONAL, REPETITION };
+enum { FAIL, GRAMMAR, RULE, LHS, RHS, TERM, GROUPING, OPTIONAL, REPETITION, LAST };
 
-/* make struct for parsed type and duplicate token */
+static char *names[] = {
+	[FAIL] = "fail", [GRAMMAR] = "grammar", [RULE] = "rule", [LHS] = "lhs", 
+	[RHS] = "rhs", [TERM] = "term", [GROUPING] = "grouping", [OPTIONAL] = "optional", 
+	[REPETITION] = "repetition"
+};
 
-int lhs(parse_state *ps, unsigned depth) 
-{ 
+typedef struct node {
+	char *sym;
+	size_t len, allocated;
+	int token_id;
+	struct node *n[0];
+} node;
+
+static node *mk(int token_id, char *sym, size_t len, ...) 
+{
+	node *ret;
+	va_list ap;
+	size_t i;
+	if(!(ret = calloc(1, sizeof(*ret) + (len * sizeof(ret)))))
+		perror("calloc"), abort();
+	ret->token_id = token_id; 
+	ret->sym = sym ? pstrdup(sym) : NULL;
+	ret->len = len;
+	ret->allocated = len;
+	va_start(ap, len);
+	for(i = 0; i < len; i++)
+		ret->n[i] = va_arg(ap, node*);
+	va_end(ap);
+	return ret;
+}
+
+static node *grow(node *n, size_t new_len)
+{
+	node *ret = n;
+	if(new_len > n->allocated) {
+		assert(new_len * 2 > n->allocated);
+		if(!(ret = realloc(n, sizeof(*ret) + (new_len * 2 * sizeof(ret))))) {
+			perror("realloc"); 
+			abort();
+		}
+		ret->allocated = new_len * 2;
+	} 
+	return ret;
+}
+
+static void unmk(node *n)
+{
+	if(!n)
+		return;
+	free(n->sym);
+	for(size_t i = 0; i < n->len; i++)
+		unmk(n->n[i]);
+	free(n);
+}
+
+static void print(node *n, unsigned depth)
+{
+	if(!n)
+		return;
+	pdepth(depth);
+	if(names[n->token_id])
+		printf("%s %s\n", names[n->token_id], n->sym ? n->sym : "");
+	else if(n->token_id != EOF)
+		printf("%c %s\n", n->token_id, n->sym ? n->sym : "");
+	else /*special case*/
+		printf("EOF\n");
+	for(size_t i = 0; i < n->len; i++)
+		print(n->n[i], depth+1);
+}
+
+static int accept(parse_state *ps, int token_id, unsigned depth)
+{
+	if(ps->token_id == token_id) {
+		lexer(ps, depth);
+		return 1;
+	}
+	return 0;
+}
+
+static node *lhs(parse_state *ps, unsigned depth) 
+{
 	/* lhs = identifier */
 	debug(ps, "lhs", depth);
 	if(ps->token_id == ID)
-		return LHS;
+		return mk(LHS, 0, 1, mk(ID, ps->token, 0));
 	return failed(ps, "lhs = identifier ;");
 }
 
-int rhs(parse_state *ps, unsigned depth);
+static node *rhs(parse_state *ps, unsigned depth);
 
-int grouping(parse_state *ps, unsigned depth) 
-{ 
-	if(ps->token_id == LPAR)
-		lexer(ps, depth);
-	else
-		return FAIL;
+static node *grouping(parse_state *ps, unsigned depth) 
+{
+	node *n; 
+	if(!accept(ps, LPAR, depth))
+		return NULL;
 	debug(ps, "grouping", depth);
-	if(rhs(ps, depth+1) == RHS)
+	n = mk(GROUPING, NULL, 1, NULL);	
+	if((n->n[0] = rhs(ps, depth+1)))
 		lexer(ps, depth);
 	else
 		goto fail;
 	if(ps->token_id == RPAR)
-		return GROUPING;
+		return n;
 fail:	return failed(ps, "grouping = '(' , rhs , ')' ;");
 }
 
-int optional(parse_state *ps, unsigned depth) 
+static node *optional(parse_state *ps, unsigned depth) 
 { 
-	if(ps->token_id == LSB)
-		lexer(ps, depth);
-	else
-		return FAIL;
+	node *n;
+	if(!accept(ps, LSB, depth))
+		return NULL;
 	debug(ps, "optional", depth);
-	if(rhs(ps, depth+1) == RHS)
+	n = mk(OPTIONAL, NULL, 1, NULL);	
+	if((n->n[0] = rhs(ps, depth+1)))
 		lexer(ps, depth);
 	else
 		goto fail;
 	if(ps->token_id == RSB)
-		return GROUPING;
+		return n;
 fail:	return failed(ps, "optional = '[' , rhs , ']' ;");
 }
 
-int repetition(parse_state *ps, unsigned depth) { 
-	/* repetition =  "{" , rhs , "}" ; */ 
-	if(ps->token_id == LBR)
-		lexer(ps, depth);
-	else
-		return FAIL;
+static node *repetition(parse_state *ps, unsigned depth) 
+{
+	node *n;
+	if(!accept(ps, LBR, depth))
+		return NULL;
 	debug(ps, "repetition", depth);
-	if(rhs(ps, depth+1) == RHS)
+	n = mk(REPETITION, NULL, 1, NULL);	
+	if((n->n[0] = rhs(ps, depth+1)))
 		lexer(ps, depth);
 	else
 		goto fail;
 	if(ps->token_id == RBR)
-		return REPETITION;
+		return n;
 fail:	return failed(ps, "repetition = '{' , rhs , '}' ;");
 }
 
-int term(parse_state *ps, unsigned depth) 
+static node *term(parse_state *ps, unsigned depth) 
 {
+	node *n = mk(TERM, NULL, 1, NULL);	
 	debug(ps, "term", depth);
-	if(ps->token_id == ID || ps->token_id == TERMINAL)
-		return TERM;
-	if(grouping(ps, depth+1) == GROUPING)
-		return TERM;
-	if(optional(ps, depth+1) == OPTIONAL)
-		return TERM;
-	if(repetition(ps, depth+1) == REPETITION)
-		return TERM;
+	if(ps->token_id == ID || ps->token_id == TERMINAL) {
+		n->n[0] = mk(ps->token_id, ps->token, 0);
+		return n;
+	}
+	if((n->n[0] = grouping(ps, depth+1)))
+		return n;
+	if((n->n[0] = optional(ps, depth+1)))
+		return n;
+	if((n->n[0] = repetition(ps, depth+1)))
+		return n;
 	return failed(ps, "term = identifier | grouping | optional | repetition ;");
 }
 
-int rhs(parse_state *ps, unsigned depth) {
-again:	debug(ps, "rhs", depth);
-	if(term(ps, depth+1) == TERM)
-		lexer(ps, depth);
-	else
-		goto fail;
-	if(ps->token_id == PIPE || ps->token_id == COMMA) {
-		lexer(ps, depth);
-		goto again;
+static node *rhs(parse_state *ps, unsigned depth) {
+	node *t, *n = mk(RHS, NULL, 1, NULL);
+	for(size_t i = 0;;) {
+		if((t = term(ps, depth+1))) {
+			n = grow(n, i+1);
+			n->n[i] = t;
+			n->len = i + 1;
+			lexer(ps, depth);
+		} else {
+			goto fail;
+		}
+		if(ps->token_id == PIPE || ps->token_id == COMMA) {
+			i++;
+			lexer(ps, depth);
+			continue;
+		}
+		untoken(ps, ps->token_id);
+		break;
 	}
-	untoken(ps, ps->token_id);
-	return RHS;
+	return n;
 fail:	return failed(ps, "rhs = term | term , '|' rhs | term , ',' rhs ;");
 }
 
-int rule(parse_state *ps, unsigned depth) { 
+static node *rule(parse_state *ps, unsigned depth) 
+{
+	node *n = mk(RULE, NULL, 2, NULL, NULL);
 	debug(ps, "rule", depth);
-	if(lhs(ps, depth+1) == LHS)
+	if((n->n[0] = lhs(ps, depth+1)))
 		lexer(ps, depth);
 	else
 		goto fail;
-	if(ps->token_id == EQ)
-		lexer(ps, depth);
-	else
+	if(!accept(ps, EQ, depth))
 		goto fail;
-	if(rhs(ps, depth+1) == RHS)
+	if((n->n[1] = rhs(ps, depth+1)))
 		lexer(ps, depth);
 	else
 		goto fail;
 	if(ps->token_id == SEMI)
-		return RULE;
+		return n;
 fail:	return failed(ps, "rule = lhs , '=' , rhs , ';' ;");
 }
 
-int grammar(parse_state *ps, unsigned depth) 
+static node *grammar(parse_state *ps, unsigned depth) 
 {
-	for(;;) {
+	node *t, *n = mk(GRAMMAR, 0, 1, NULL);
+	for(size_t i = 0;;i++) {
 		lexer(ps, depth);
 		if(ps->token_id == END)
-			return GRAMMAR;
-		if(rule(ps, depth + 1) != RULE)
+			return n;
+		if((t = rule(ps, depth + 1))) {
+			n = grow(n, i+1);
+			n->len = i + 1;
+			n->n[i] = t;
+		} else {
 			goto fail;
-		
+		}
 	}
 fail:	return failed(ps, "grammar = EOF | { rule } ; EOF");
 }
 
-int parse_ebnf(parse_state *ps, FILE *in, int debug_on) 
+node *parse_ebnf(parse_state *ps, FILE *in, int debug_on) 
 {
 	assert(ps && in);
 	memset(ps, 0, sizeof(*ps));
@@ -325,10 +437,10 @@ int parse_ebnf(parse_state *ps, FILE *in, int debug_on)
 	ps->line = 1;
 	if(setjmp(ps->jb)) {
 		ps->jmpbuf_set = 0;
-		return -1;
+		return NULL;
 	}
 	ps->jmpbuf_set = 1;
-	return grammar(ps, 0) == GRAMMAR;
+	return grammar(ps, 0);
 }
 
 /*generate C directory or compile to VM, and spit out program and VM? */
@@ -347,7 +459,9 @@ int main(int argc, char **argv) {
 			perror(argv[0]);
 			return 1;
 		}
-		parse_ebnf(&ps, in, 1);
+		node *n = parse_ebnf(&ps, in, 1);
+		print(n, 0);
+		unmk(n);
 		fclose(in);
 	}
 
