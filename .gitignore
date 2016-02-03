@@ -6,3 +6,5 @@ ebnf
 core
 vgcore.*
 *.log
+ebnf.bnf.h
+ebnf.bnf.c

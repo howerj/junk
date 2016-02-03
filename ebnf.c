@@ -2,16 +2,19 @@
  *  @brief      An Extended Backus–Naur Form Parser generator for C (work in progress)
  *  @author     Richard James Howe.
  *  @copyright  Copyright 2015 Richard James Howe.
- *  @license    LGPL v2.1 or later version
+ *  @license    GPL v2.1 or later version
  *  @email      howe.r.j.89@gmail.com 
  *  See <https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form>
- *  @todo Add in comments and other parts of the EBNF standard
- *  @todo Add in escape characters
+ *  @todo Add in other parts of the EBNF standard, as well as
+ *        escape characters, character classes and white-space
  *  @todo Allow parsing of binary files
- *  @todo Add spaces to the grammar
- *  @todo Build up parse tree
  *  @todo Clean up and simplify code
- *  */
+ *  @todo Print out S-Expressions, both for debugging and as a serialization
+ *  	  format 
+ *  
+ *  The hard coded parser and lexer should be disposed of once the VM works,
+ *  a lot of code will be duplicated until this happens.
+ **/
 #include <assert.h>
 #include <ctype.h>
 #include <stdio.h>
@@ -19,6 +22,7 @@
 #include <string.h>
 #include <setjmp.h>
 #include <stdarg.h>
+#include <errno.h>
 
 #define TOKEN_LEN	(256)
 
@@ -46,7 +50,7 @@ typedef struct parse_state {
 	jmp_buf jb;
 } parse_state;
 
-/* util */
+/******************************** util ****************************************/
 
 static char *pstrdup(const char *s)
 {
@@ -98,7 +102,7 @@ static void debug(parse_state *ps, char *msg, unsigned depth)
 	}
 }
 
-/* lexer */
+/******************************** lexer ***************************************/
 
 static void untoken(parse_state *ps, int token) 
 {
@@ -183,7 +187,29 @@ again:	c = getc(ps->in);
 	case '{':  ps->token_id = LBR;	break;
 	case '}':  ps->token_id = RBR;	break;
 	/** @todo add in "(*" and "*)" comments here*/
-	case '(':  ps->token_id = LPAR; 	break;
+	case '(':  c = getc(ps->in);
+		   if(c == '*') {
+			   for(;;) {
+				   c = getc(ps->in);
+				   if(c == '*') {
+					   c = getc(ps->in);
+					   if(c == ')')
+						   break;
+					   if(c == EOF)
+						   goto comment_error;
+						   
+				   }
+				   if(c == EOF)
+					   goto comment_error;
+			   }
+			   goto again;
+comment_error:
+			failed(ps, "(* , any-character , *)");
+		   } else {
+			   ungetc(c, ps->in);
+		   }
+		   ps->token_id = LPAR;	
+		   break;
 	case ')':  ps->token_id = RPAR;	break;
 	case '<':  ps->token_id = LBB;	break;
 	case '>':  ps->token_id = RBB;	break;
@@ -209,7 +235,9 @@ again:	c = getc(ps->in);
 	return ps->token_id;
 }
 
-/*parser*/
+/******************************** parser **************************************/
+
+/**@bug Alternation is not encoded in the returned tree! */
 
 enum { FAIL, GRAMMAR, RULE, LHS, RHS, TERM, GROUPING, OPTIONAL, REPETITION, LAST };
 
@@ -379,6 +407,7 @@ static node *rhs(parse_state *ps, unsigned depth) {
 		} else {
 			goto fail;
 		}
+		/**@todo Encode alternation or concatenation */
 		if(ps->token_id == PIPE || ps->token_id == COMMA) {
 			i++;
 			lexer(ps, depth);
@@ -443,9 +472,87 @@ node *parse_ebnf(parse_state *ps, FILE *in, int debug_on)
 	return grammar(ps, 0);
 }
 
-/*generate C directory or compile to VM, and spit out program and VM? */
+/****************************** code generation *******************************/
+
+enum { NOP, PUSH, POP, IF, ACCEPT, EXPECT, CALL, RETURN, UNTOKEN, ABORT, JZ };
+
+typedef struct operation {
+	int instruction;
+	int token; /**< token to look for*/
+	char *id; /**< id or terminal to match for ID or TERMINAL*/
+} operation;
+
+typedef struct code_state {
+	size_t here;
+	operation *code;
+} code_state;
+
+#define PERRNO(MSG) do { fprintf(stderr, "%s %s %d", (MSG), strerror(errno), __LINE__); abort(); } while(0)
+#define MAX_CODE_LENGTH (4096u)
+
+static void code(code_state *cs, node *n) 
+{
+	switch(n->token_id) {
+	case ID: /*CALL RULE for given ID and EXPECT*/
+	case TERMINAL: /*EXPECT ID*/
+
+	case GRAMMAR: /*Set up
+			Generate code for RULEs
+			Patch up CALLs*/
+	case RULE: /* LHS : RHS */
+	case LHS: /*Add label to list that can be CALLED*/
+	case RHS: /*Generate code for rule
+			CALL IDs and EXPECT
+			EXPECT TERMINAL
+			EXPECT TERM
+			*/
+	case TERM: /*pass through to OPTIONAL, GROUPING or REPETITION*/
+	case OPTIONAL: /*ACCEPT {RHS}*/
+	case GROUPING: /*??*/
+	case REPETITION: /*WHILE{ EXPECT RHS }*/
+
+	case FAIL: 
+	case LAST:
+	default:
+		fprintf(stderr, "code generation error\n");
+		abort();
+	}
+}
+
+static code_state *generate_code(node *n) 
+{
+	code_state *cs = calloc(1, sizeof(*cs));
+	if(!cs) 
+		PERRNO("calloc");
+	if(!(cs->code = calloc(MAX_CODE_LENGTH, sizeof(*cs->code)))) 
+		PERRNO("calloc");
+	code(cs, n);
+	return cs;
+}
+
+static void destroy_code_state(code_state *cs) { free(cs); }
+
+/******************************* EBNF VM **************************************/
+
+/*The VM is passed a code_state and a special VM lexer*/
+
+typedef struct vm {
+	size_t pc, stkp;
+	int *stack;
+} vm;
+
+/******************************* driver ***************************************/
 
 static parse_state ps;
+
+static char *strcata(char *a, char *b)
+{
+	size_t la = strlen(a), lb = strlen(b);
+	char *r = malloc(la + lb + 1);
+	memcpy(r, a, la);
+	memcpy(r+la, b, lb);
+	return r;
+}
 
 int main(int argc, char **argv) {
 	if(argc < 2) {
@@ -453,18 +560,33 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
+	assert(((int)ID > LAST) && ((int)TERMINAL > LAST));
+
 	while(++argv, --argc) { 
-		FILE *in = fopen(argv[0], "rb");
+		FILE *in = fopen(argv[0], "rb"), *headfile, *bodyfile;
 		if(!in) {
 			perror(argv[0]);
 			return 1;
 		}
-		node *n = parse_ebnf(&ps, in, 1);
-		print(n, 0);
-		unmk(n);
-		fclose(in);
-	}
+		char *header = strcata(argv[0], ".h");
+		char *body   = strcata(argv[0], ".c");
 
+		node *n = parse_ebnf(&ps, in, 1);
+
+		headfile = fopen(header, "wb");
+		bodyfile = fopen(body, "wb");
+
+		print(n, 0);
+
+		free(header);
+		free(body);
+
+		unmk(n);
+
+		fclose(in);
+		fclose(headfile);
+		fclose(bodyfile);
+	}
         return 0;
 }
 
