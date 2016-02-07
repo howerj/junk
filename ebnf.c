@@ -166,6 +166,31 @@ static int terminal(parse_state *ps, char expect) {
 	}
 }
 
+static int comment(parse_state *ps) {
+	int c = getc(ps->in);
+	if(c == '*') {
+		for(;;) {
+			c = getc(ps->in);
+			if(c == '*') {
+				c = getc(ps->in);
+				if(c == ')')
+					break;
+				if(c == EOF)
+					goto comment_error;
+					   
+			   }
+			   if(c == EOF)
+				goto comment_error;
+		}
+		return 1;
+comment_error:
+		failed(ps, "(* , any-character , *)");
+	} else {
+		ungetc(c, ps->in);
+	}
+	return 0;
+}
+
 static int lexer(parse_state *ps, unsigned depth)
 {
 	int c;
@@ -182,43 +207,23 @@ again:	c = getc(ps->in);
 	case '\n': ps->line++;
 	case ' ':
 	case '\t': goto again;	
-	case '[':  ps->token_id = LSB;	break;
-	case ']':  ps->token_id = RSB;	break;
-	case '{':  ps->token_id = LBR;	break;
-	case '}':  ps->token_id = RBR;	break;
-	/** @todo add in "(*" and "*)" comments here*/
-	case '(':  c = getc(ps->in);
-		   if(c == '*') {
-			   for(;;) {
-				   c = getc(ps->in);
-				   if(c == '*') {
-					   c = getc(ps->in);
-					   if(c == ')')
-						   break;
-					   if(c == EOF)
-						   goto comment_error;
-						   
-				   }
-				   if(c == EOF)
-					   goto comment_error;
-			   }
+	case '[':  ps->token_id = LSB; break;
+	case ']':  ps->token_id = RSB; break;
+	case '{':  ps->token_id = LBR; break;
+	case '}':  ps->token_id = RBR; break;
+	case '(':  if(comment(ps))
 			   goto again;
-comment_error:
-			failed(ps, "(* , any-character , *)");
-		   } else {
-			   ungetc(c, ps->in);
-		   }
 		   ps->token_id = LPAR;	
 		   break;
-	case ')':  ps->token_id = RPAR;	break;
-	case '<':  ps->token_id = LBB;	break;
-	case '>':  ps->token_id = RBB;	break;
-	case '=':  ps->token_id = EQ;	break;
+	case ')':  ps->token_id = RPAR; break;
+	case '<':  ps->token_id = LBB;  break;
+	case '>':  ps->token_id = RBB;  break;
+	case '=':  ps->token_id = EQ;   break;
 	case '|':  ps->token_id = PIPE;	break;
-	case '.':  ps->token_id = PERIOD;	break;
-	case ',':  ps->token_id = COMMA;	break;
-	case ';':  ps->token_id = SEMI;	break;
-	case EOF:  ps->token_id = END;	break;
+	case '.':  ps->token_id = PERIOD; break;
+	case ',':  ps->token_id = COMMA; break;
+	case ';':  ps->token_id = SEMI; break;
+	case EOF:  ps->token_id = END;  break;
 	case '\'': 
 	case '"':  ps->token_id = terminal(ps, c); break;
 	default:
@@ -237,20 +242,18 @@ comment_error:
 
 /******************************** parser **************************************/
 
-/**@bug Alternation is not encoded in the returned tree! */
-
-enum { FAIL, GRAMMAR, RULE, LHS, RHS, TERM, GROUPING, OPTIONAL, REPETITION, LAST };
+enum { FAIL, GRAMMAR, RULE, LHS, RHS, ALTERNATE, TERM, GROUPING, OPTIONAL, REPETITION, LAST };
 
 static char *names[] = {
 	[FAIL] = "fail", [GRAMMAR] = "grammar", [RULE] = "rule", [LHS] = "lhs", 
-	[RHS] = "rhs", [TERM] = "term", [GROUPING] = "grouping", [OPTIONAL] = "optional", 
+	[RHS] = "rhs", [ALTERNATE] = "alternate", [TERM] = "term", [GROUPING] = "grouping", [OPTIONAL] = "optional", 
 	[REPETITION] = "repetition"
 };
 
 typedef struct node {
 	char *sym;
 	size_t len, allocated;
-	int token_id;
+	int token_id, has_alternate;
 	struct node *n[0];
 } node;
 
@@ -325,7 +328,7 @@ static node *lhs(parse_state *ps, unsigned depth)
 	/* lhs = identifier */
 	debug(ps, "lhs", depth);
 	if(ps->token_id == ID)
-		return mk(LHS, 0, 1, mk(ID, ps->token, 0));
+		return mk(LHS, ps->token, 0); 
 	return failed(ps, "lhs = identifier ;");
 }
 
@@ -407,8 +410,15 @@ static node *rhs(parse_state *ps, unsigned depth) {
 		} else {
 			goto fail;
 		}
-		/**@todo Encode alternation or concatenation */
 		if(ps->token_id == PIPE || ps->token_id == COMMA) {
+			if(ps->token_id == PIPE) {
+				n = grow(n, i + 2);
+				n->n[i+1] = mk(ALTERNATE, NULL, 0);
+				n->len = i + 2;
+				n->has_alternate = 1;
+				i++;
+			}
+			/* COMMA is the default operation */
 			i++;
 			lexer(ps, depth);
 			continue;
@@ -493,7 +503,6 @@ typedef struct code_state {
 static void code(code_state *cs, node *n) 
 {
 	switch(n->token_id) {
-	case ID: /*CALL RULE for given ID and EXPECT*/
 	case TERMINAL: /*EXPECT ID*/
 
 	case GRAMMAR: /*Set up
@@ -505,7 +514,11 @@ static void code(code_state *cs, node *n)
 			CALL IDs and EXPECT
 			EXPECT TERMINAL
 			EXPECT TERM
+			Handle ALTERNATE
 			*/
+	case ALTERNATE: /* ACCEPT first
+			   	else JMP End
+			   EXPECT rest*/
 	case TERM: /*pass through to OPTIONAL, GROUPING or REPETITION*/
 	case OPTIONAL: /*ACCEPT {RHS}*/
 	case GROUPING: /*??*/
@@ -548,7 +561,7 @@ static parse_state ps;
 static char *strcata(char *a, char *b)
 {
 	size_t la = strlen(a), lb = strlen(b);
-	char *r = malloc(la + lb + 1);
+	char *r = calloc(la + lb + 1, 1);
 	memcpy(r, a, la);
 	memcpy(r+la, b, lb);
 	return r;
@@ -560,7 +573,7 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	assert(((int)ID > LAST) && ((int)TERMINAL > LAST));
+	assert(((int)TERMINAL > LAST));
 
 	while(++argv, --argc) { 
 		FILE *in = fopen(argv[0], "rb"), *headfile, *bodyfile;
