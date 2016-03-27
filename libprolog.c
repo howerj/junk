@@ -39,7 +39,8 @@ static const char *initprg  = " ";
 
 #define PWARN(P,M) fprintf(stderr,errorfmt,(P),(M),__FILE__,__LINE__,o->lc)
 #define WARN(M)    PWARN("",(M))
-#define FAIL(O,M)  do { WARN((M)); longjmp((O)->exception, 1); } while(0);
+#define RECOVER(O,M)  do { WARN((M)); longjmp((O)->exception, 1); } while(0);
+#define FATAL(M)   fatal((M), __FILE__, __func__, __LINE__)
 #define ID_MAX     (256u)
 
 struct prolog_obj {         
@@ -52,6 +53,12 @@ struct prolog_obj {
         unsigned invalid :1, stringin :1; /*invalidate obj? string input? */
         jmp_buf exception; /*jump here on exception*/
 };
+
+static void fatal(const char *msg, const char *file, const char *func, unsigned line)
+{
+	fprintf(stderr, "(error %s %s %s %d)\n", msg, file, func, line);
+	abort();
+}
 
 static int ogetc(prolog_obj_t *o)
 {       if(o->stringin) return o->sidx >= o->slen ? EOF : o->sin[o->sidx++];
@@ -101,12 +108,12 @@ static void next_sym(prolog_obj_t *o)
           case '.': o->sym = PERIOD;  next_ch(o); break;
           case ',': o->sym = COMMA;   next_ch(o); break;
           case '?': next_ch(o); 
-                    if(o->ch != '-') FAIL(o,"expected '-'"); 
+                    if(o->ch != '-') RECOVER(o,"expected '-'"); 
                     o->sym = QUERY;
                     next_ch(o);
                     break;
           case ':': next_ch(o); 
-                    if(o->ch != '-') FAIL(o, "expected '-'"); 
+                    if(o->ch != '-') RECOVER(o, "expected '-'"); 
                     o->sym = ASSIGN;
                     next_ch(o);
                     break;
@@ -121,7 +128,7 @@ static void next_sym(prolog_obj_t *o)
                 } else if(isalpha(o->ch)) { /*variable, atom or keyword*/
                         size_t i = 0;
                         while(isalnum(o->ch)) {
-                                if(i > ID_MAX) FAIL(o, "identifier too longer");
+                                if(i > ID_MAX) RECOVER(o, "identifier too longer");
                                 o->id[i++] = o->ch;
                                 next_ch(o);
                         }
@@ -138,7 +145,7 @@ static void next_sym(prolog_obj_t *o)
                                 break;
                         }
                 } else {
-                        FAIL(o, "invalid char"); 
+                        RECOVER(o, "invalid char"); 
                 }
                 break;
         }
@@ -157,11 +164,10 @@ static node *term(prolog_obj_t *o);
 
 static node *new_node(prolog_obj_t *o, int type)
 {       node *x = calloc(1, sizeof(node));
-        if(!x) FAIL(o, "allocation failed"); 
+        if(!x) RECOVER(o, "allocation failed"); 
         x->type = type;
         return x;
 }
-
 
 static node *terms(prolog_obj_t *o)
 {       node *x = new_node(o, TERMS), *t;
@@ -192,10 +198,10 @@ static node *rule(prolog_obj_t *o)
                 next_sym(o);
                 x->o2 = terms(o);
                 if(o->sym != PERIOD) 
-                        FAIL(o, "expected '.'");
+                        RECOVER(o, "expected '.'");
                 return x;
         }
-        FAIL(o, "expected ':-' or '.'");
+        RECOVER(o, "expected ':-' or '.'");
         return x;
 }
 
@@ -226,11 +232,37 @@ static node *program(prolog_obj_t *o)
         next_sym(o); 
         x->o1 = queryorrule(o); 
         if(o->sym != EOI)
-                FAIL(o, "expected EOI");
+                RECOVER(o, "expected EOI");
         return x;
 }
 
+/* -- Printing ------------------------------------------------------------- */
+
+int prolog_print(node *p, unsigned depth, FILE *out)
+{
+
+	switch(p->type) {
+	case TERMS:
+	case TERM: 
+	case RULE:
+	case PQUERY: 
+	case QUERYORRULE: 
+	case PROG:
+		fprintf(out, "prog");
+		return prolog_print(p->o1, depth+1, out);
+	default:
+		FATAL("reached the unreachable");
+	}
+
+	return 0;
+}
+
+
 /* -- Execution ------------------------------------------------------------ */
+
+/* unify */
+/* solve */
+
 /* -- Interface ------------------------------------------------------------ */
 
 void prolog_seti(prolog_obj_t *o, FILE *in)  
