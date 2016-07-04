@@ -1,0 +1,12 @@
+#!/bin/sh
+set -ve
+ocamlc -c toyapl_expr.ml
+ocamlyacc toyapl_parser.mly
+ocamlc -c toyapl_parser.mli
+ocamlc -c toyapl_parser.ml
+ocamllex toyapl_lexer.mll
+ocamlc -c toyapl_lexer.ml
+ocaml toyapl_parser.cmo toyapl_lexer.cmo toyapl.ml # for regression tests
+ocamlc -c toyapl.ml
+ocamlc -o toyapl_repl toyapl_parser.cmo toyapl_lexer.cmo toyapl.cmo \
+toyapl_repl.ml

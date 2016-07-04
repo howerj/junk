@@ -1,0 +1,5 @@
+#!/bin/sh
+# And a clean script:
+set -v
+# wow, the build process makes 14 files...
+rm *~ *.cmi *.cmo toyapl_lexer.ml toyapl_parser.ml toyapl_parser.mli toyapl_repl

@@ -1,0 +1,1158 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html itemscope="" itemtype="http://schema.org/"><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8"><script src="apl_files/nr-943.js"></script><script src="apl_files/analytics.js" async=""></script><script type="text/javascript">window.NREUM||(NREUM={}),__nr_require=function(e,t,n){function r(n){if(!t[n]){var o=t[n]={exports:{}};e[n][0].call(o.exports,function(t){var o=e[n][1][t];return r(o||t)},o,o.exports)}return t[n].exports}if("function"==typeof __nr_require)return __nr_require;for(var o=0;o<n.length;o++)r(n[o]);return r}({1:[function(e,t,n){function r(e,t){return function(){o(e,[(new Date).getTime()].concat(a(arguments)),null,t)}}var o=e("handle"),i=e(2),a=e(3);"undefined"==typeof window.newrelic&&(newrelic=NREUM);var u=["setPageViewName","setCustomAttribute","finished","addToTrace","inlineHit"],c=["addPageAction"],f="api-";i(u,function(e,t){newrelic[t]=r(f+t,"api")}),i(c,function(e,t){newrelic[t]=r(f+t)}),t.exports=newrelic,newrelic.noticeError=function(e){"string"==typeof e&&(e=new Error(e)),o("err",[e,(new Date).getTime()])}},{}],2:[function(e,t,n){function r(e,t){var n=[],r="",i=0;for(r in e)o.call(e,r)&&(n[i]=t(r,e[r]),i+=1);return n}var o=Object.prototype.hasOwnProperty;t.exports=r},{}],3:[function(e,t,n){function r(e,t,n){t||(t=0),"undefined"==typeof n&&(n=e?e.length:0);for(var r=-1,o=n-t||0,i=Array(0>o?0:o);++r<o;)i[r]=e[t+r];return i}t.exports=r},{}],ee:[function(e,t,n){function r(){}function o(e){function t(e){return e&&e instanceof r?e:e?u(e,a,i):i()}function n(n,r,o){e&&e(n,r,o);for(var i=t(o),a=l(n),u=a.length,c=0;u>c;c++)a[c].apply(i,r);var s=f[g[n]];return s&&s.push([m,n,r,i]),i}function p(e,t){w[e]=l(e).concat(t)}function l(e){return w[e]||[]}function d(e){return s[e]=s[e]||o(n)}function v(e,t){c(e,function(e,n){t=t||"feature",g[n]=t,t in f||(f[t]=[])})}var w={},g={},m={on:p,emit:n,get:d,listeners:l,context:t,buffer:v};return m}function i(){return new r}var a="nr@context",u=e("gos"),c=e(2),f={},s={},p=t.exports=o();p.backlog=f},{}],gos:[function(e,t,n){function r(e,t,n){if(o.call(e,t))return e[t];var r=n();if(Object.defineProperty&&Object.keys)try{return Object.defineProperty(e,t,{value:r,writable:!0,enumerable:!1}),r}catch(i){}return e[t]=r,r}var o=Object.prototype.hasOwnProperty;t.exports=r},{}],handle:[function(e,t,n){function r(e,t,n,r){o.buffer([e],r),o.emit(e,t,n)}var o=e("ee").get("handle");t.exports=r,r.ee=o},{}],id:[function(e,t,n){function r(e){var t=typeof e;return!e||"object"!==t&&"function"!==t?-1:e===window?0:a(e,i,function(){return o++})}var o=1,i="nr@id",a=e("gos");t.exports=r},{}],loader:[function(e,t,n){function r(){if(!w++){var e=v.info=NREUM.info,t=s.getElementsByTagName("script")[0];if(e&&e.licenseKey&&e.applicationID&&t){c(l,function(t,n){e[t]||(e[t]=n)});var n="https"===p.split(":")[0]||e.sslForHttp;v.proto=n?"https://":"http://",u("mark",["onload",a()],null,"api");var r=s.createElement("script");r.src=v.proto+e.agent,t.parentNode.insertBefore(r,t)}}}function o(){"complete"===s.readyState&&i()}function i(){u("mark",["domContent",a()],null,"api")}function a(){return(new Date).getTime()}var u=e("handle"),c=e(2),f=window,s=f.document;NREUM.o={ST:setTimeout,CT:clearTimeout,XHR:f.XMLHttpRequest,REQ:f.Request,EV:f.Event,PR:f.Promise,MO:f.MutationObserver},e(1);var p=""+location,l={beacon:"bam.nr-data.net",errorBeacon:"bam.nr-data.net",agent:"js-agent.newrelic.com/nr-943.min.js"},d=window.XMLHttpRequest&&XMLHttpRequest.prototype&&XMLHttpRequest.prototype.addEventListener&&!/CriOS/.test(navigator.userAgent),v=t.exports={offset:a(),origin:p,features:{},xhrWrappable:d};s.addEventListener?(s.addEventListener("DOMContentLoaded",i,!1),f.addEventListener("load",r,!1)):(s.attachEvent("onreadystatechange",o),f.attachEvent("onload",r)),u("mark",["firstbyte",a()],null,"api");var w=0},{}]},{},["loader"]);</script>
+
+
+<title>
+	culture.people.kragen.hacks - Toy APL interpreter in OCaml - msg#00000 - Recent Discussion OSDir.com
+</title>
+<!-- base href="http://osdir.com/ml/culture.people.kragen.hacks/2007-04/" -->
+
+
+                <link rel="stylesheet" href="apl_files/defaultv8.css" type="text/css">
+
+
+
+
+<script type="text/JavaScript">
+<!--
+function timedRefresh(timeoutPeriod) {
+	setTimeout("location.reload(true);",timeoutPeriod);
+}
+//   -->
+</script>
+
+
+
+
+
+<meta itemprop="name" content="Toy APL interpreter in OCaml - culture.people.kragen.hacks">
+<meta itemprop="description" content="Toy APL interpreter in OCaml">
+
+
+<script src="apl_files/jquery.js"></script><style>iframe[src="http://osdir.com/ml/aolsky.php"],
+iframe[src="http://osdir.com/ml/aolbtfblocks.php"],
+iframe[src="http://osdir.com/ml/aol3.php"],
+iframe[src="http://osdir.com/ml/aol2.php"],
+iframe[src="http://osdir.com/ml/aol1.php"],
+iframe[src="http://osdir.com/ml/aollb3.php"],
+iframe[src="http://osdir.com/ml/aollb2.php"]
+{display:none !important;}</style>
+<script src="apl_files/iframe_defer.js"></script>
+<!-- DEFERS -->
+
+
+<!-- 1/2  !!!!! Script to kickstart recliner is lower in page!!!!! -->
+<script src="apl_files/recliner.js"></script>  
+<!-- http://sourcey.com/recliner/#iframes -->
+<!-- LAZY LOADS -->
+
+
+
+
+
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+	<script type="text/javascript" src="apl_files/t.js"></script>
+	<script>
+	tracker.events.onLoad(37914);
+	</script>
+
+
+</head>	
+
+
+
+  <!-- Clears Odd behavior on comments & follow ups postings -->
+  <body onload="JavaScript:timedRefresh(343466);"> 
+
+
+
+ 
+		<!-- NATCH -->
+
+<!-- Normally GA code for everything -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+
+  ga('create', 'UA-381510-10', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+<!-- FANCY BAR -->
+			<div id="topBarBox" class="round10">
+					<table border="0" cellpadding="0" cellspacing="0" height="25" width="100%">
+						<tbody><tr>
+							<td align="left" valign="middle">
+								
+		<font size="+3"><a href="http://osdir.com/ml/" style="color:black;font-body:Ariel;text-decoration:none">OSDir.com</a></font> 
+<a href="http://osdir.com/ml/culture.people.kragen.hacks/" title="culture.people.kragen.hacks">
+culture.people.kragen.hacks</a> 
+								</td>
+							<td valign="middle">
+								<center>
+									<div id="osDirAd1Post" class="adContainer banner" style="width:988px; height:25px;">
+
+								</div></center>
+						</td>
+							<td align="right" valign="middle">
+
+
+
+							</td>
+						</tr>
+					</tbody></table>
+				</div>
+				<!-- END FANCY BAR -->
+			
+		
+<!-- #PAGE HEADER -->		
+		
+
+
+			
+				<center>
+<p>
+				<!-- <div id="adContainerDiv1" class="adContainer banner" style="display: inline; height: 150px;"></div> -->
+								</p></center>
+			
+		
+<!-- #PAGE HEADER END -->
+		
+			
+<!-- PAGE MIDDLE -->
+				<table border="0" cellpadding="0" cellspacing="0">
+				<tbody><tr>
+	<td valign="top" width="10">
+	<!-- LEFT COLUMN -->	
+<div style="margin-left: 10px; margin-right: 10px;">
+<p>
+</p></div>
+<!-- LEFT COLUMN END -->
+					</td>
+
+
+					<td valign="top" width="913"><!-- This width figure impacts the right col floating around -->
+	<!-- MIDDLE COLUMN -->
+	                <div class="col1" style="width:913px;"><!-- This width figure impacts the right col floating around -->
+     
+
+		  				<script language="javascript1.1" src="apl_files/addyn3"></script>	
+
+	
+
+<p>
+				</p><div class="osDirMsgContainer round10" id="osDirMsgPost" style="position:relative;overflow:auto !important;">
+									 
+								<div class="osDirMessageTitle">
+									
+
+<!-- In Msg SPAM Fighter -->
+
+
+
+
+<table><tbody><tr><td>
+<h1 id="messsubj">Subject: 
+Toy APL interpreter in OCaml</h1> 
+<!-- 2nd LB Space -->
+
+
+<!-- 2/2 Kickstart the Lazy Loading Code -->
+<script>
+    $(function() {
+        // instantiate recliner
+        $('.lazy').recliner({
+            attrib: "data-src", // selector for attribute containing the media src
+            throttle: 1,      // millisecond interval at which to process events
+            threshold: 0,     // scroll distance from element before its loaded
+            live: false        // NOT SURE WHAT THIS DOES SO LEAVING IT OFF -Steve  // auto bind lazy loading to ajax loaded elements          
+        });
+    });
+</script>
+<!-- End Kickstart -->
+
+
+							
+	<!-- <h2>List: <a href='http://osdir.com/ml/culture.people.kragen.hacks/' title='culture.people.kragen.hacks'>culture.people.kragen.hacks</a></h2> -->
+</td>
+<td valign="top"> 
+<div align="right"> 
+
+
+
+
+</div>
+</td></tr></tbody></table>
+
+
+</div>
+
+<p>
+								</p><div class="osDirPrevNext">
+									<center>
+									<span style="font-size: smaller;">
+									<!-- <b>culture.people.kragen.hacks Navigation:</b> --> 
+									</span>
+								
+
+
+							
+
+
+
+	
+									<a href="http://osdir.com/ml/culture.people.kragen.hacks/2007-04/">Date Index</a>
+								<!-- <a href='index.html#00000'>Index</a> -->
+									Thread:
+																												<a href="http://osdir.com/ml/culture.people.kragen.hacks/2007-04/msg00001.html" title="">Next</a>
+										
+	
+								<a href="http://osdir.com/ml/culture.people.kragen.hacks/2007-04/threads.html">Thread Index</a> 
+							
+								<!-- <a href='threads.html#00000'>Index</a> -->
+
+
+
+
+</center>       </div><p> </p><p>
+
+<!-- RCH Links -->
+ 
+
+
+
+
+
+
+
+</p><div style="float:right; margin-right: 2px; width:310px">
+ 
+</div>
+
+							
+							
+																	
+						
+
+
+
+
+
+ 	<div id="messspan">
+
+
+
+
+So I thought I'd write a quick little language implementation in<br>
+OCaml, since (a) OCaml is sort of optimized for writing languages and<br>
+(b) I wanted to learn OCaml, including ocamllex and ocamlyacc.  So<br>
+here's a tiny, nearly useless subset of APL, supporting only<br>
+one-dimensional vectors of floating-point numbers.<br>
+<br>
+Like everything else I post to kragen-hacks without a notice to the<br>
+contrary, this code is in the public domain; I relinquish any<br>
+copyright.<br>
+<br>
+Here's a sample session:<br>
+<br>
+Beauty:~/devel/toyapl kragen$ ./toyapl_repl<br>
+Welcome to toyapl, a tiny APL subset.<br>
+Separate numbers by spaces; available ops are + - * / +/ */ % iota<br>
+% is modulo; / is division.<br>
+This program is not expected to be useful; I wrote it to learn OCaml.<br>
+        3150 10000 12000 15000 / 2150<br>
+1.46511627907 4.6511627907 5.58139534884 6.97674418605<br>
+        (+/ 3150 10000 12000 15000 / 2150) / 4<br>
+4.66860465116<br>
+        iota 15<br>
+0 1 2 3 4 5 6 7 8 9 10 11 12 13 14<br>
+        ((iota 10)/10)*((iota 10)/10)<br>
+0 0.01 0.04 0.09 0.16 0.25 0.36 0.49 0.64 0.81<br>
+        ((1+iota 10)/10)*((1+iota 10)/10)<br>
+0.01 0.04 0.09 0.16 0.25 0.36 0.49 0.64 0.81 1<br>
+        (iota 15) % 3<br>
+0 1 2 0 1 2 0 1 2 0 1 2 0 1 2<br>
+        ((iota 20)*1+iota 20)/2<br>
+0 1 3 6 10 15 21 28 36 45 55 66 78 91 105 120 136 153 171 190<br>
+<br>
+When I get a chance, I'm putting this online at<br>
+<a rel="nofollow" href="http://pobox.com/%7Ekragen/sw/toyapl.html">http://pobox.com/~kragen/sw/toyapl.html</a> and<br>
+<a rel="nofollow" href="http://pobox.com/%7Ekragen/sw/toyapl.tar.gz">http://pobox.com/~kragen/sw/toyapl.tar.gz</a><br>
+<br>
+<br>
+<br>
+<br>
+(* First, here's an expression type, which I put in toyapl_expr.ml *)<br>
+type value = float list ;;<br>
+type op = string ;;<br>
+type expr = <br>
+    Unary of op * expr <br>
+  | Atom of value <br>
+  | Parenthesized of expr <br>
+  | Binary of expr * op * expr ;;  (* later, add variables *)<br>
+<br>
+<br>
+<br>
+<br>
+(* Then, here's toyapl_lexer.mll: *)<br>
+{<br>
+open Toyapl_parser ;;<br>
+open Toyapl_expr ;;<br>
+}<br>
+let alus = ['A'-'Z' 'a'-'z' '_']<br>
+let alnumus = alus | ['0'-'9']<br>
+let ident = alus alnumus*<br>
+rule next = parse<br>
+     [' ' '\t']  { next lexbuf }  (* skip whitespace; stolen from manual *)<br>
+   | ['0'-'9']+ ('.' ['0'-'9']+)? <br>
+                           { Num (float_of_string (Lexing.lexeme lexbuf)) }<br>
+   | ['+' '-' '/' '*' '%']+ | ident <br>
+                           { Op (Lexing.lexeme lexbuf) }<br>
+   | '('                   { Lparen }<br>
+   | ')'                   { Rparen }<br>
+   | '\n'                  { Eol }<br>
+<br>
+<br>
+<br>
+<br>
+(* Then, here's toyapl_parser.mly: *)<br>
+%{<br>
+open Toyapl_expr;;<br>
+%}<br>
+%token &lt;float&gt; Num<br>
+%token &lt;Toyapl_expr.op&gt; Op<br>
+%token Lparen Rparen Eol<br>
+%right Op<br>
+%start parse_line<br>
+%type &lt;Toyapl_expr.expr&gt; parse_line<br>
+%%<br>
+parse_line:<br>
+        expr Eol            { $1 }<br>
+;<br>
+atom:<br>
+        Num                 { [ $1 ] }<br>
+      | atom Num            { $1 @ [ $2 ] }<br>
+expr:<br>
+        atom                { Atom $1 }<br>
+      | expr Op expr        { Binary($1, $2, $3) }<br>
+      | Lparen expr Rparen  { Parenthesized($2) }<br>
+      | Op expr             { Unary($1, $2) }<br>
+      | Lparen Rparen       { Atom([]) }<br>
+<br>
+<br>
+<br>
+<br>
+(* And here's a top-level driver for the main program, which I put in <br>
+   toyapl_repl.ml: *)<br>
+print_string "Welcome to toyapl, a tiny APL subset.<br>
+Separate numbers by spaces; available ops are + - * / +/ */ % iota<br>
+% is modulo; / is division.<br>
+This program is not expected to be useful; I wrote it to learn OCaml.<br>
+" ;<br>
+try Toyapl.repl stdin stdout with End_of_file -&gt; () ;;<br>
+<br>
+<br>
+<br>
+<br>
+(* And here's the main program, toyapl.ml: *)<br>
+(* toy APL as an exercise to learn OCaml *)<br>
+(* to do: change values to trees *)<br>
+open Toyapl_expr ;;<br>
+<br>
+exception Op_not_found of op ;;<br>
+<br>
+let assoc f list = try List.assoc f list <br>
+    with Not_found -&gt; raise (Op_not_found f) ;;<br>
+<br>
+let rec eval_with unaries binaries = let rec eval = function <br>
+    Unary (f, e) -&gt; (assoc f unaries) (eval e)<br>
+  | Atom e -&gt; e <br>
+  | Parenthesized e -&gt; eval e<br>
+  | Binary (e1, f, e2) -&gt; (assoc f binaries) (eval e1) (eval e2)<br>
+  in eval ;;<br>
+<br>
+let show_num n = if n = float_of_int (int_of_float n) <br>
+    then string_of_int (int_of_float n)<br>
+    else string_of_float n ;;<br>
+<br>
+let rec show_atom = function<br>
+    [] -&gt; "()"<br>
+  | n :: m :: lst -&gt; show_num n ^ " " ^ show_atom (m::lst)<br>
+  | [n] -&gt; show_num n ;;<br>
+<br>
+let rec show = function<br>
+    Unary (f, e) -&gt; f ^ " " ^ show e<br>
+  | Atom e -&gt; show_atom e<br>
+  | Parenthesized e -&gt; "(" ^ show e ^ ")" <br>
+  | Binary (Atom _ as e1, f, e2) | Binary (Parenthesized _ as e1, f, e2) -&gt; <br>
+      show e1 ^ " " ^ f ^ " " ^ show e2<br>
+  | Binary (e, f, e2) -&gt; <br>
+        show (Parenthesized e) ^ " " ^ f ^ " " ^ show e2 ;;<br>
+<br>
+(* numbers up to n. *)<br>
+(* it's not clear what iota should do when applied to a nonscalar *)<br>
+let apl_iota [n] = let rec iota start stop = if start = stop then [] <br>
+        else float_of_int start :: iota (start + 1) stop<br>
+    in iota 0 (int_of_float n) ;;<br>
+<br>
+let unary_lift = List.map ;;<br>
+let reduce op id x = [List.fold_left op id x] ;;<br>
+let unaries = ["+", unary_lift (fun x -&gt; x); "-", unary_lift (~-.);<br>
+                     "+/", reduce (+.) 0.;<br>
+                     "*/", reduce ( *. ) 1.;<br>
+                     "iota", apl_iota] ;;<br>
+<br>
+exception Mismatched_list_lengths of value * value ;;<br>
+<br>
+let aplbinarylift f a b =<br>
+    let flip f a b = f b a<br>
+    in<br>
+    match (a, b) with<br>
+        ([a1], [b1]) -&gt; [f a1 b1]<br>
+      | ([a1], b1 :: b2 :: rest) -&gt; List.map (f a1) b<br>
+      | (a1 :: a2 :: rest, [b1]) -&gt; List.map (flip f b1) a<br>
+      | (_, _) -&gt; try List.map2 f a b with <br>
+            Invalid_argument _ -&gt; raise (Mismatched_list_lengths (a, b)) ;;<br>
+<br>
+let fmod a b = a -. b *. (floor (a /. b)) ;;<br>
+<br>
+let binaries = ["+", aplbinarylift (+.); "-", aplbinarylift (-.);<br>
+                "*", aplbinarylift ( *. ); "/", aplbinarylift (/.);<br>
+                "%", aplbinarylift fmod] ;;<br>
+<br>
+let eval = eval_with unaries binaries ;;<br>
+<br>
+let show_value = show_atom;;<br>
+<br>
+let parse value = Toyapl_parser.parse_line Toyapl_lexer.next <br>
+    (Lexing.from_string (value ^ "\n")) ;;<br>
+<br>
+let repl inp outp =<br>
+    while true do<br>
+        output_string outp "        "; flush outp;<br>
+        let inval = input_line inp in<br>
+        try output_string outp ((show_value (eval (parse inval))) ^ "\n");<br>
+            flush outp<br>
+        with Parsing.Parse_error -&gt; output_string outp "?parse error\n"<br>
+           | Op_not_found (op) -&gt; output_string outp ("?not found " ^ op ^ "\n")<br>
+           | Stack_overflow -&gt; output_string outp "?stack overflow\n"<br>
+           | Mismatched_list_lengths(a, b) -&gt; <br>
+               output_string outp ("?length mismatch: " ^ show_value a ^ ", " ^ <br>
+                                   show_value b ^ "\n")<br>
+    done ;;<br>
+<br>
+(* exception Test_failure of int * 'a * 'a ;; *)<br>
+<br>
+let test () = <br>
+    (* atoms *)<br>
+    assert ([45.] = eval (Atom [45.]));<br>
+    assert ("45" = show (Atom [45.]));<br>
+    assert ([45.; 50.] = eval (Atom [45.; 50.]));<br>
+    assert ("45 50" = show (Atom [45.; 50.]));<br>
+    (* parenthesized expressions *)<br>
+    let f7 = Parenthesized (Parenthesized (Atom [47.])) in<br>
+    assert ("((47))" = show f7);<br>
+    assert ([47.] = eval f7);<br>
+    (* binary ops (depends on addition) *)<br>
+    let seven = Binary ((Atom [3.]), "+", (Atom [4.])) in<br>
+    assert ("3 + 4" = show seven);<br>
+    assert ([7.] = eval seven);<br>
+    assert ([7.] = eval (Parenthesized seven));<br>
+    assert ("(3 + 4)" = show (Parenthesized seven));<br>
+    (* left operands of binary ops: binary ops *)<br>
+    let twelve = Binary (seven, "+", Atom [5.]) in<br>
+    assert ([12.] = eval twelve);<br>
+    assert ("(3 + 4) + 5" = show twelve);<br>
+    assert ("(3 + 4) + 5" = show (Binary (Parenthesized seven, <br>
+                                                "+", Atom [5.])));<br>
+    (* left operands of binary ops: atoms *)<br>
+    assert ("5 + 3 + 4" = show (Binary (Atom [5.], "+", seven)));<br>
+    (* unary ops (depends on negation) *)<br>
+    let minus_one = Binary (Atom [3.], "+", Unary("-",Atom [4.])) in<br>
+    assert ("3 + - 4" = show minus_one);<br>
+    assert ([-1.] = eval minus_one);<br>
+    (* left operands of binary ops: unary ops *)<br>
+    assert ("(- 4) + 3" = show (Binary (Unary("-", Atom [4.]), <br>
+                                                    "+", Atom [3.])));<br>
+    (* no precedence given to unary ops *)<br>
+    assert ("- 3 + 4" = show (Unary ("-", seven)));<br>
+    assert ([-7.] = eval (Unary ("-", seven)));<br>
+<br>
+    (* unary ops: identity, sum, product *)<br>
+    assert ([7.] = eval (Unary ("+", seven)));<br>
+    assert ([202.] = eval (Unary ("+/", Atom [49.; 50.; 51.; 52.])));<br>
+    assert ([0.] = eval (Unary ("+/", Atom [])));<br>
+    assert ("+/ ()" = show (Unary ("+/", Atom [])));<br>
+    assert ([6497400.] = eval (Unary ("*/", Atom [49.; 50.; 51.; 52.])));<br>
+    assert ([1.] = eval (Unary ("*/", Atom [])));<br>
+    (* simple unary ops on vectors *)<br>
+    let minus_nums = Unary ("-", Atom [3.; 4.]) in<br>
+    assert ([-3.; -4.] = eval minus_nums);<br>
+    assert ("- 3 4" = show minus_nums);<br>
+    assert ([-3.; -4.] = eval (Unary ("+", minus_nums)));<br>
+    assert ("+ - 3 4" = show (Unary ("+", minus_nums)));<br>
+<br>
+    (* other binary ops *)<br>
+    assert([-1.] = eval (Binary (Atom [3.], "-", Atom [4.])));<br>
+    assert([12.] = eval (Binary (Atom [3.], "*", Atom [4.])));<br>
+    assert([60.5] = eval (Binary (Atom [121.], "/", Atom [2.])));<br>
+    assert([2.] = eval (Binary (Atom [122.], "%", Atom [10.])));<br>
+<br>
+    (* pointwise binary ops with vectors *)<br>
+    assert([7.; 8.; 9.; 10.] = eval (Binary (Atom [3.], "+", <br>
+                                             Atom [4.; 5.; 6.; 7.])));<br>
+    assert([7.; 8.; 9.; 10.] = eval (Binary (Atom [4.; 5.; 6.; 7.], "+",<br>
+                                             Atom [3.])));<br>
+    assert([3.; 3.; 3.; 4.] = eval (Binary (Atom [7.; 8.; 9.; 10.], "-", <br>
+                                        Atom [4.; 5.; 6.; 6.])));<br>
+    try ignore (eval (Binary (Atom [2.; 3.], "+", Atom [5.; 6.; 7.]))); <br>
+               assert false with<br>
+        Mismatched_list_lengths (a, b) -&gt; <br>
+            assert (([2.; 3.], [5.; 6.; 7.]) = (a, b));<br>
+<br>
+    (* iota *)<br>
+    let iota5 = Unary ("iota", Atom [5.]) in<br>
+    assert([0.; 1.; 2.; 3.; 4.] = eval iota5);<br>
+    assert("iota 5" = show iota5);<br>
+    assert([120.] = eval(Unary("*/", Binary(Atom [1.], "+", iota5))));<br>
+<br>
+    (* show_value *)<br>
+    assert("0 1 2 3 4" = show_value (eval iota5));<br>
+<br>
+    (* parsing *)<br>
+    assert(Atom [23.] = parse "23");<br>
+    assert(Atom [2.;3.] = parse "2 3");<br>
+    assert(Unary("+/", Unary("iota", Atom [5.])) = parse "+/iota 5");<br>
+<br>
+    (* total system tests *)<br>
+    assert("1 2 0 1 2 0 1 2 0 1" = <br>
+           (show_value (eval (parse "((iota 10) - 5) % 3"))));<br>
+    assert("0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1" =<br>
+           (show_value (eval (parse "(1 + iota 10) / 10"))));<br>
+    assert("15 18 21" = (show_value (eval (parse "3 * 4 5 6 + 1"))));<br>
+;;<br>
+test () ;;<br>
+<br>
+<br>
+<br>
+<br>
+# Then I wrote a build-script:<br>
+#!/bin/sh<br>
+set -ve<br>
+ocamlc -c toyapl_expr.ml<br>
+ocamlyacc toyapl_parser.mly<br>
+ocamlc -c toyapl_parser.mli<br>
+ocamlc -c toyapl_parser.ml<br>
+ocamllex toyapl_lexer.mll<br>
+ocamlc -c toyapl_lexer.ml<br>
+ocaml toyapl_parser.cmo toyapl_lexer.cmo toyapl.ml  # for regression tests<br>
+ocamlc -c toyapl.ml<br>
+ocamlc -o toyapl_repl toyapl_parser.cmo toyapl_lexer.cmo toyapl.cmo \<br>
+       toyapl_repl.ml<br>
+<br>
+<br>
+<br>
+<br>
+# And a clean script:<br>
+#!/bin/sh<br>
+set -v<br>
+# wow, the build process makes 14 files...<br>
+rm *~ *.cmi *.cmo toyapl_lexer.ml toyapl_parser.ml toyapl_parser.mli toyapl_repl<br>
+<br>
+<br>
+<br>
+<br>
+# And a Makefile:<br>
+# sorry, I wrote this on a Mac without make (!)<br>
+all:<br>
+        ./build<br>
+<br>
+<br>
+<br></div>
+			</div>
+                                                                
+
+
+<center>
+<table border="0" cellpadding="0" cellspacing="0" width="100%">
+<tbody><tr>
+
+<td>
+</td>
+<td>
+<div>
+
+</div>
+</td>
+</tr>
+</tbody></table>
+<p> 
+</p></center>
+
+<p>
+
+
+
+
+
+
+
+
+
+  </p><center>
+<table>
+
+<tbody><tr>
+<td>
+</td>
+<td>
+</td>
+
+</tr>
+</tbody></table>
+<table><tbody><tr><td>
+</td></tr>
+</tbody></table>
+
+</center>
+<p>
+
+
+
+
+                <iframe style="display: none ! important;" src="apl_files/aollb2.html" scrolling="no" height="99" width="738">
+                </iframe>
+
+							</p><div class="blueBorder round10" style="padding: 5px;"><b>Thread at a glance:</b>
+	                			      			
+	                				                			<div class="osdirMsgPreview" id="osDirMsgPre4">
+	                				<h3 onclick="toggleMe('osDirMsgPre4');">Next Message by Date:
+	                					<!--<span style="font-size: 8pt">click to view message preview</span>-->
+	                				</h3>
+	                				<a href="http://osdir.com/ml/culture.people.kragen.hacks/2007-04/msg00001.html">towers of Hanoi in OCaml</a><br><br>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+I was reflecting on how the Towers of Hanoi problem was important in
+my development as a programmer --- my Microsoft-Basic-limited idea of
+"programming" was dramatically expanded when I saw a recursive
+towers-of-Hanoi program in Pascal that was less than a screenful, and
+of course really understanding recursion is a real mind-blower.
+
+But in a modern programming language, Hanoi can be even shorter:
+
+    (* move n discs from a to z (using third peg named x) *)
+    let rec hanoi move n a z x = if n = 0 then () else 
+      (hanoi move (n-1) a x z ; move n a z ; hanoi move (n-1) x z a)
+    let printmove disc a b = print_endline 
+        ("Move disc " ^ (string_of_int disc) ^ " from " ^ a ^ " to " ^ b) ;;
+    hanoi printmove 4 "peg A" "peg C" "peg B"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	               				</div>
+	               				      			
+
+	                			      			
+	                				                			<div class="osdirMsgPreview" id="osDirMsgPre2">
+	                				<h3 onclick="toggleMe('osDirMsgPre2');">Next Message by Thread:
+	                				<!--<span style="font-size: 8pt">click to view message preview</span>-->
+	                				</h3>
+	                				<a href="http://osdir.com/ml/culture.people.kragen.hacks/2007-04/msg00001.html">towers of Hanoi in OCaml</a><br><br>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+I was reflecting on how the Towers of Hanoi problem was important in
+my development as a programmer --- my Microsoft-Basic-limited idea of
+"programming" was dramatically expanded when I saw a recursive
+towers-of-Hanoi program in Pascal that was less than a screenful, and
+of course really understanding recursion is a real mind-blower.
+
+But in a modern programming language, Hanoi can be even shorter:
+
+    (* move n discs from a to z (using third peg named x) *)
+    let rec hanoi move n a z x = if n = 0 then () else 
+      (hanoi move (n-1) a x z ; move n a z ; hanoi move (n-1) x z a)
+    let printmove disc a b = print_endline 
+        ("Move disc " ^ (string_of_int disc) ^ " from " ^ a ^ " to " ^ b) ;;
+    hanoi printmove 4 "peg A" "peg C" "peg B"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	               				</div>
+	               											</div>
+
+
+<div></div>
+
+
+<table><tbody><tr><td>
+<div>      
+</div>
+</td></tr></tbody></table>
+
+<p>
+</p><center>
+<!-- Here -->
+
+<table><tbody><tr>
+<td valign="top">
+
+</td>
+<td>
+</td>
+</tr>
+<tr><td>
+
+</td>
+</tr>
+</tbody></table>
+
+
+
+
+<br>
+</center>
+<center>
+
+<p>
+<!-- THREADS -->
+</p><div>
+
+
+
+
+                <iframe style="display: none ! important;" src="apl_files/aollb3.html" scrolling="no" height="99" width="738">
+                </iframe>
+
+
+
+<iframe src="apl_files/dateindex4_002.html" class="blueBorder round10" scrolling="no" id="dlistFrame" style="padding:5px;overflow:hidden;" height="1345" width="900">
+  </iframe>
+<p>
+<iframe src="apl_files/dateindex4_002.html" class="blueBorder round10" scrolling="no" id="dlistFrame" style="padding:5px;overflow:hidden;" height="1345" width="900">
+  </iframe>
+</p><p>
+							</p><div style="display:none;">
+	<!-- new frame here -->
+								<!--
+								<iframe 									
+									src="" 									
+									width="910" height="400" 
+									scrolling="no" 
+									id="subfooter" style="padding:5px;overflow:hidden;">
+								</iframe>
+								-->
+							</div>
+</div>
+
+
+	               			</center></div>      			
+					<center>	
+					                                            <div id="osDirAdN1Post"></div>
+                                            <table border="0">
+                                                <tbody><tr>
+                                                    <td>
+							</td><td><div id="osDirAdN2Post"></div></td>
+                                                    <td><div id="osDirAdN3Post"></div></td>
+                                              </tr>
+                                            </tbody></table>
+						
+					
+
+
+
+					</center>
+										
+							<div style="padding-top: 5px;">
+                                                        <center>
+								<div id="osDirAd4Post">
+									<script type="text/javascript">
+										//GA_googleFillSlot("mlBottomLeaderboard");
+									</script>								
+								</div>
+							</center></div>		
+
+                                                        <div style="padding-top: 5px;"><center>
+							<table border="0" cellpadding="0" cellspacing="0">
+							<tbody><tr>
+								<td><div id="osDirAd5Post">
+									<script type="text/javascript">
+										//GA_googleFillSlot("mlBottomBlockLeft");
+									</script>								
+								</div></td>
+								<td><div id="osDirAd6Post">
+									<script type="text/javascript">
+										//GA_googleFillSlot("mlBottomBlockRight");
+									</script>								
+								</div></td>
+							</tr></tbody></table>
+							</center>
+						</div>		
+					
+	                
+					
+	                <div>
+
+
+
+
+
+	                <p>	</p><center>
+
+
+
+<p>
+
+</p><p>
+
+
+	                		<a href="http://osdir.com/ml" title="Home">Home</a> | <a href="http://osdir.com/">News</a> |  <a href="http://osdir.com/ml/site_dir/">Sitemap</a>  | <a rel="nofollow" href="http://osdir.com/ml/faq.php">FAQ</a> | <a rel="nofollow" href="http://osdir.com/Article9135.phtml">advertise</a> | OSDir is an <a href="http://inevitablecorp.com/">Inevitable</a> website. <a href="http://gbiz.org/">GBiz</a> is too! <img src="apl_files/supertinyappleboy.gif" alt="super tiny logo">
+        </p></center>
+
+	               	
+	                </div>
+	                
+	<!-- MIDDLE COLUMN END -->
+			</td>
+	
+
+
+<td valign="top" width="390">
+	<!-- RIGHT COLUMN -->
+  <div style="position:absolute; margin-left: 10px;">
+   </div>
+   <div id="adContainerDiv2" class="adContainer banner">
+   <p>
+
+</p><table>
+<tbody><tr>
+<td valign="top">
+
+
+
+	</td>
+	</tr><tr><td>
+			<iframe style="display: none ! important;" src="apl_files/aol1.html" scrolling="no" height="255" width="305">
+  		</iframe>
+	
+
+
+<p></p><h4>Latest News Stories:</h4>
+<a href="http://osdir.com/Article11412.phtml">Linux 4.0 Kernel Released</a><br>
+<a href="http://osdir.com/Article11411.phtml">Google Lets SMTP Certificate Expire</a><br>
+<a href="http://osdir.com/Article11410.phtml">Open Crypto Audit Passes TrueCrypt</a><br>
+<a href="http://osdir.com/Article11408.phtml">CIA 'tried to crack security of Apple devices'</a><br>
+<a href="http://osdir.com/Article11406.phtml">Xen Security Bug: Amazon, Rackspace Cloud Reboots</a><br>
+<a href="http://osdir.com/Article11405.phtml">FCC Approves Net Neutrality Rules</a><p>
+
+
+	</p><p>
+	<iframe style="display: none ! important;" src="apl_files/aol2.html" scrolling="no" height="510" width="305">
+                </iframe>
+
+
+</p><p>
+   </p><div id="recentcomments" class="dsq-widget cleanDis  blueBorder round10" style="width: 300px;margin-left: 10px;">
+
+<h3>Recent Msgs:</h3><a href="http://osdir.com/ml/kde-commits/2016-06/msg07770.html">kde-commits/2016-06/msg07770.html</a><p><a href="http://osdir.com/ml/general/2016-07/msg00012.html">general/2016-07/msg00012.html</a></p><p><a href="http://osdir.com/ml/postgresql-pgsql-hackers/2016-06/msg01507.html">postgresql-pgsql-hackers/2016-06/msg01507.html</a></p><p><a href="http://osdir.com/ml/general/2016-07/msg00031.html">general/2016-07/msg00031.html</a></p><p><a href="http://osdir.com/ml/general/2016-07/msg00038.html">general/2016-07/msg00038.html</a></p><p><a href="http://osdir.com/ml/general/2016-07/msg00068.html">general/2016-07/msg00068.html</a></p><p><a href="http://osdir.com/ml/orca-list/2016-07/msg00001.html">orca-list/2016-07/msg00001.html</a></p><p><a href="http://osdir.com/ml/general/2016-07/msg00018.html">general/2016-07/msg00018.html</a></p><p><a href="http://osdir.com/ml/general/2016-07/msg00004.html">general/2016-07/msg00004.html</a></p><p><a href="http://osdir.com/ml/kernel-team/2016-07/msg00000.html">kernel-team/2016-07/msg00000.html</a></p><p>   </p></div>
+<p>
+</p></td>
+</tr>
+</tbody></table>
+   <!-- <div id="osDirAd2Post" style="margin-left: 10px;width:300px;height:250px">
+</div> -->
+<p>
+</p><table>
+<tbody><tr>
+<td valign="top">
+</td>
+</tr>
+</tbody></table>
+
+   <div style="margin-left: 10px;">
+
+
+<p><iframe class="lazy" data-src="//www.facebook.com/plugins/like.php?href=http%3A%2F%2Fosdir.com%2F&amp;width&amp;layout=standard&amp;action=like&amp;show_faces=true&amp;share=true&amp;height=80&amp;appId=143155335926" scrolling="no" style="border:none; overflow:hidden; height:80px;" allowtransparency="true" frameborder="0"></iframe>
+
+
+		<iframe style="display: none ! important;" src="apl_files/aol3.html" scrolling="no" height="765" width="305">
+                </iframe>
+
+
+
+</p><p>
+</p><h4>Latest News Stories:</h4>
+<a href="http://osdir.com/Article11412.phtml">Linux 4.0 Kernel Released</a><br>
+<a href="http://osdir.com/Article11411.phtml">Google Lets SMTP Certificate Expire</a><br>
+<a href="http://osdir.com/Article11410.phtml">Open Crypto Audit Passes TrueCrypt</a><br>
+<a href="http://osdir.com/Article11408.phtml">CIA 'tried to crack security of Apple devices'</a><br>
+<a href="http://osdir.com/Article11406.phtml">Xen Security Bug: Amazon, Rackspace Cloud Reboots</a><br>
+<a href="http://osdir.com/Article11405.phtml">FCC Approves Net Neutrality Rules</a><br>
+<br>
+
+
+                <iframe style="display: none ! important;" src="apl_files/aolbtfblocks.html" scrolling="no" height="1220" width="310">
+                </iframe>
+<p>
+                <iframe style="display: none ! important;" src="apl_files/aolsky.html" scrolling="no" height="1220" width="170">
+                </iframe>
+
+
+
+
+  </p></div>
+
+	</div>
+<!-- RIGHT COLUMN END -->
+	</td>
+				</tr></tbody></table>
+<!-- PAGE MIDDLE END-->
+			
+		
+		
+			
+				<!-- PAGE FOOTER -->
+			
+		
+	
+	<br>
+<script src="apl_files/oldJQ.js" type="text/javascript"></script>
+
+<script>
+
+//Add hotspot in banner
+$('#homeClick').click(
+	function(){
+		document.location = "/ml/";
+	}
+);
+
+
+//target _blank links.
+//Don't convert links that are on index pages.
+if (isIndexPage != true){
+	//console.log("getting lists", $('.cleanDis a'));
+	$("#messspan a").each(function(item,thing){
+			thing.target='_blank'
+			//thing.href = '/ml/redir.php?redir='+thing.href
+	})
+	$(".cleanDis a").each(function(item,thing){
+			thing.target='_blank'
+	})
+}
+
+
+//Preview mechanics
+var tmpToggleHeight = new Object();
+function toggleMe(theDiv){
+	//return;
+	//console.log($("#" + theDiv))
+	if(!tmpToggleHeight[theDiv]){
+		$("#" + theDiv)[0].style.height="8em"
+		tmpToggleHeight[theDiv] = 6
+	} else {
+		$("#" + theDiv)[0].style.height="3.0em"
+		tmpToggleHeight[theDiv] = 0	
+	}
+}
+
+</script>
+
+
+
+
+
+
+<script type="text/javascript">
+var isIE = (document.all) ? 1 : 0
+var adList = []
+
+function replaceAd(ad){
+/*
+	if (isIE){
+		adList.push(ad)
+		/*
+		setTimeout( function(){
+			$("#" + ad + "Pre").appendTo( $("#" + ad + "Post") )
+		},2000)
+		*/
+	//} else { 
+		//$("#" + ad + "Pre").appendTo( $("#" + ad + "Post") )
+	//}
+}
+
+if (typeof ord=='undefined') {ord=Math.random()*10000000000000000;}
+</script>
+<div style="border: 1px solid #000000; display: none;">
+</div>
+
+
+
+
+<script type="text/javascript">
+/*
+if(isIE){
+
+	$(adList).each(function(i,ad){
+		//$("#" + ad + "Post").append("#" + ad + "Pre")
+		$("#" + ad + "Pre").appendTo( $("#" + ad + "Post") )
+		//console.log("ad:",ad)
+	})
+
+}*/
+</script>
+
+<!-- All other end of body stuff HERE -->
+<script src="apl_files/riveted.js"></script>
+<script>riveted.init();</script>
+
+<script type="text/javascript">
+window.NREUM||(NREUM={}),__nr_require=function(t,e,n){function r(n){if(!e[n]){var o=e[n]={exports:{}};t[n][0].call(o.exports,function(e){var o=t[n][1][e];return r(o||e)},o,o.exports)}return e[n].exports}if("function"==typeof __nr_require)return __nr_require;for(var o=0;o<n.length;o++)r(n[o]);return r}({QJf3ax:[function(t,e){function n(t){function e(e,n,a){t&&t(e,n,a),a||(a={});for(var c=s(e),f=c.length,u=i(a,o,r),d=0;f>d;d++)c[d].apply(u,n);return u}function a(t,e){f[t]=s(t).concat(e)}function s(t){return f[t]||[]}function c(){return n(e)}var f={};return{on:a,emit:e,create:c,listeners:s,_events:f}}function r(){return{}}var o="nr@context",i=t("gos");e.exports=n()},{gos:"7eSDFh"}],ee:[function(t,e){e.exports=t("QJf3ax")},{}],3:[function(t){function e(t){try{i.console&&console.log(t)}catch(e){}}var n,r=t("ee"),o=t(1),i={};try{n=localStorage.getItem("__nr_flags").split(","),console&&"function"==typeof console.log&&(i.console=!0,-1!==n.indexOf("dev")&&(i.dev=!0),-1!==n.indexOf("nr_dev")&&(i.nrDev=!0))}catch(a){}i.nrDev&&r.on("internal-error",function(t){e(t.stack)}),i.dev&&r.on("fn-err",function(t,n,r){e(r.stack)}),i.dev&&(e("NR AGENT IN DEVELOPMENT MODE"),e("flags: "+o(i,function(t){return t}).join(", ")))},{1:22,ee:"QJf3ax"}],4:[function(t){function e(t,e,n,i,s){try{c?c-=1:r("err",[s||new UncaughtException(t,e,n)])}catch(f){try{r("ierr",[f,(new Date).getTime(),!0])}catch(u){}}return"function"==typeof a?a.apply(this,o(arguments)):!1}function UncaughtException(t,e,n){this.message=t||"Uncaught error with no additional information",this.sourceURL=e,this.line=n}function n(t){r("err",[t,(new Date).getTime()])}var r=t("handle"),o=t(6),i=t("ee"),a=window.onerror,s=!1,c=0;t("loader").features.err=!0,t(5),window.onerror=e;try{throw new Error}catch(f){"stack"in f&&(t(1),t(2),"addEventListener"in window&&t(3),window.XMLHttpRequest&&XMLHttpRequest.prototype&&XMLHttpRequest.prototype.addEventListener&&window.XMLHttpRequest&&XMLHttpRequest.prototype&&XMLHttpRequest.prototype.addEventListener&&!/CriOS/.test(navigator.userAgent)&&t(4),s=!0)}i.on("fn-start",function(){s&&(c+=1)}),i.on("fn-err",function(t,e,r){s&&(this.thrown=!0,n(r))}),i.on("fn-end",function(){s&&!this.thrown&&c>0&&(c-=1)}),i.on("internal-error",function(t){r("ierr",[t,(new Date).getTime(),!0])})},{1:9,2:8,3:6,4:10,5:3,6:23,ee:"QJf3ax",handle:"D5DuLP",loader:"G9z0Bl"}],5:[function(t){function e(){}if(window.performance&&window.performance.timing&&window.performance.getEntriesByType){var n=t("ee"),r=t("handle"),o=t(1),i=t(2);t("loader").features.stn=!0,t(3);var a=Event;n.on("fn-start",function(t){var e=t[0];e instanceof a&&(this.bstStart=Date.now())}),n.on("fn-end",function(t,e){var n=t[0];n instanceof a&&r("bst",[n,e,this.bstStart,Date.now()])}),o.on("fn-start",function(t,e,n){this.bstStart=Date.now(),this.bstType=n}),o.on("fn-end",function(t,e){r("bstTimer",[e,this.bstStart,Date.now(),this.bstType])}),i.on("fn-start",function(){this.bstStart=Date.now()}),i.on("fn-end",function(t,e){r("bstTimer",[e,this.bstStart,Date.now(),"requestAnimationFrame"])}),n.on("pushState-start",function(){this.time=Date.now(),this.startPath=location.pathname+location.hash}),n.on("pushState-end",function(){r("bstHist",[location.pathname+location.hash,this.startPath,this.time])}),"addEventListener"in window.performance&&(window.performance.addEventListener("webkitresourcetimingbufferfull",function(){r("bstResource",[window.performance.getEntriesByType("resource")]),window.performance.webkitClearResourceTimings()},!1),window.performance.addEventListener("resourcetimingbufferfull",function(){r("bstResource",[window.performance.getEntriesByType("resource")]),window.performance.clearResourceTimings()},!1)),document.addEventListener("scroll",e,!1),document.addEventListener("keypress",e,!1),document.addEventListener("click",e,!1)}},{1:9,2:8,3:7,ee:"QJf3ax",handle:"D5DuLP",loader:"G9z0Bl"}],6:[function(t,e){function n(t){i.inPlace(t,["addEventListener","removeEventListener"],"-",r)}function r(t){return t[1]}var o=t("ee").create(),i=t(1)(o),a=t("gos");if(e.exports=o,n(window),"getPrototypeOf"in Object){for(var s=document;s&&!s.hasOwnProperty("addEventListener");)s=Object.getPrototypeOf(s);s&&n(s);for(var c=XMLHttpRequest.prototype;c&&!c.hasOwnProperty("addEventListener");)c=Object.getPrototypeOf(c);c&&n(c)}else XMLHttpRequest.prototype.hasOwnProperty("addEventListener")&&n(XMLHttpRequest.prototype);o.on("addEventListener-start",function(t,e){function n(){return s}if(t[1]){var r=t[1];if("function"==typeof r){var s=a(r,"nr@wrapped",function(){return i(r,"fn-",n,r.name||"anonymous")});this.wrapped=t[1]=s,o.emit("initEventContext",[t,e],this.wrapped)}else"function"==typeof r.handleEvent&&i.inPlace(r,["handleEvent"],"fn-")}}),o.on("removeEventListener-start",function(t){var e=this.wrapped;e&&(t[1]=e)})},{1:24,ee:"QJf3ax",gos:"7eSDFh"}],7:[function(t,e){var n=t("ee").create(),r=t(1)(n);e.exports=n,r.inPlace(window.history,["pushState","replaceState"],"-")},{1:24,ee:"QJf3ax"}],8:[function(t,e){var n=t("ee").create(),r=t(1)(n);e.exports=n,r.inPlace(window,["requestAnimationFrame","mozRequestAnimationFrame","webkitRequestAnimationFrame","msRequestAnimationFrame"],"raf-"),n.on("raf-start",function(t){t[0]=r(t[0],"fn-")})},{1:24,ee:"QJf3ax"}],9:[function(t,e){function n(t,e,n){t[0]=i(t[0],"fn-",null,n)}function r(t,e,n){function r(){return a}this.ctx={};var a={"nr@context":this.ctx};o.emit("initTimerContext",[t,n],a),t[0]=i(t[0],"fn-",r,n)}var o=t("ee").create(),i=t(1)(o);e.exports=o,i.inPlace(window,["setTimeout","setImmediate"],"setTimer-"),i.inPlace(window,["setInterval"],"setInterval-"),i.inPlace(window,["clearTimeout","clearImmediate"],"clearTimeout-"),o.on("setInterval-start",n),o.on("setTimer-start",r)},{1:24,ee:"QJf3ax"}],10:[function(t,e){function n(){f.inPlace(this,p,"fn-",o)}function r(t,e){f.inPlace(e,["onreadystatechange"],"fn-")}function o(t,e){return e}function i(t,e){for(var n in t)e[n]=t[n];return e}var a=t("ee").create(),s=t(1),c=t(2),f=c(a),u=c(s),d=window.XMLHttpRequest,p=["onload","onerror","onabort","onloadstart","onloadend","onprogress","ontimeout"];e.exports=a,window.XMLHttpRequest=function(t){var e=new d(t);try{a.emit("new-xhr",[],e),e.hasOwnProperty("addEventListener")&&u.inPlace(e,["addEventListener","removeEventListener"],"-",o),e.addEventListener("readystatechange",n,!1)}catch(r){try{a.emit("internal-error",[r])}catch(i){}}return e},i(d,XMLHttpRequest),XMLHttpRequest.prototype=d.prototype,f.inPlace(XMLHttpRequest.prototype,["open","send"],"-xhr-",o),a.on("send-xhr-start",r),a.on("open-xhr-start",r)},{1:6,2:24,ee:"QJf3ax"}],11:[function(t){function e(t){var e=this.params,r=this.metrics;if(!this.ended){this.ended=!0;for(var i=0;c>i;i++)t.removeEventListener(s[i],this.listener,!1);if(!e.aborted){if(r.duration=(new Date).getTime()-this.startTime,4===t.readyState){e.status=t.status;var a=t.responseType,f="arraybuffer"===a||"blob"===a||"json"===a?t.response:t.responseText,u=n(f);if(u&&(r.rxSize=u),this.sameOrigin){var d=t.getResponseHeader("X-NewRelic-App-Data");d&&(e.cat=d.split(", ").pop())}}else e.status=0;r.cbTime=this.cbTime,o("xhr",[e,r,this.startTime])}}}function n(t){if("string"==typeof t&&t.length)return t.length;if("object"!=typeof t)return void 0;if("undefined"!=typeof ArrayBuffer&&t instanceof ArrayBuffer&&t.byteLength)return t.byteLength;if("undefined"!=typeof Blob&&t instanceof Blob&&t.size)return t.size;if("undefined"!=typeof FormData&&t instanceof FormData)return void 0;try{return JSON.stringify(t).length}catch(e){return void 0}}function r(t,e){var n=i(e),r=t.params;r.host=n.hostname+":"+n.port,r.pathname=n.pathname,t.sameOrigin=n.sameOrigin}if(window.XMLHttpRequest&&XMLHttpRequest.prototype&&XMLHttpRequest.prototype.addEventListener&&!/CriOS/.test(navigator.userAgent)){t("loader").features.xhr=!0;var o=t("handle"),i=t(2),a=t("ee"),s=["load","error","abort","timeout"],c=s.length,f=t(1),u=window.XMLHttpRequest;t(4),t(3),a.on("new-xhr",function(){this.totalCbs=0,this.called=0,this.cbTime=0,this.end=e,this.ended=!1,this.xhrGuids={}}),a.on("open-xhr-start",function(t){this.params={method:t[0]},r(this,t[1]),this.metrics={}}),a.on("open-xhr-end",function(t,e){"loader_config"in NREUM&&"xpid"in NREUM.loader_config&&this.sameOrigin&&e.setRequestHeader("X-NewRelic-ID",NREUM.loader_config.xpid)}),a.on("send-xhr-start",function(t,e){var r=this.metrics,o=t[0],i=this;if(r&&o){var f=n(o);f&&(r.txSize=f)}this.startTime=(new Date).getTime(),this.listener=function(t){try{"abort"===t.type&&(i.params.aborted=!0),("load"!==t.type||i.called===i.totalCbs&&(i.onloadCalled||"function"!=typeof e.onload))&&i.end(e)}catch(n){try{a.emit("internal-error",[n])}catch(r){}}};for(var u=0;c>u;u++)e.addEventListener(s[u],this.listener,!1)}),a.on("xhr-cb-time",function(t,e,n){this.cbTime+=t,e?this.onloadCalled=!0:this.called+=1,this.called!==this.totalCbs||!this.onloadCalled&&"function"==typeof n.onload||this.end(n)}),a.on("xhr-load-added",function(t,e){var n=""+f(t)+!!e;this.xhrGuids&&!this.xhrGuids[n]&&(this.xhrGuids[n]=!0,this.totalCbs+=1)}),a.on("xhr-load-removed",function(t,e){var n=""+f(t)+!!e;this.xhrGuids&&this.xhrGuids[n]&&(delete this.xhrGuids[n],this.totalCbs-=1)}),a.on("addEventListener-end",function(t,e){e instanceof u&&"load"===t[0]&&a.emit("xhr-load-added",[t[1],t[2]],e)}),a.on("removeEventListener-end",function(t,e){e instanceof u&&"load"===t[0]&&a.emit("xhr-load-removed",[t[1],t[2]],e)}),a.on("fn-start",function(t,e,n){e instanceof u&&("onload"===n&&(this.onload=!0),("load"===(t[0]&&t[0].type)||this.onload)&&(this.xhrCbStart=(new Date).getTime()))}),a.on("fn-end",function(t,e){this.xhrCbStart&&a.emit("xhr-cb-time",[(new Date).getTime()-this.xhrCbStart,this.onload,e],e)})}},{1:"XL7HBI",2:12,3:10,4:6,ee:"QJf3ax",handle:"D5DuLP",loader:"G9z0Bl"}],12:[function(t,e){e.exports=function(t){var e=document.createElement("a"),n=window.location,r={};e.href=t,r.port=e.port;var o=e.href.split("://");return!r.port&&o[1]&&(r.port=o[1].split("/")[0].split("@").pop().split(":")[1]),r.port&&"0"!==r.port||(r.port="https"===o[0]?"443":"80"),r.hostname=e.hostname||n.hostname,r.pathname=e.pathname,r.protocol=o[0],"/"!==r.pathname.charAt(0)&&(r.pathname="/"+r.pathname),r.sameOrigin=!e.hostname||e.hostname===document.domain&&e.port===n.port&&e.protocol===n.protocol,r}},{}],13:[function(t,e){function n(t){return function(){r(t,[(new Date).getTime()].concat(i(arguments)))}}var r=t("handle"),o=t(1),i=t(2);"undefined"==typeof window.newrelic&&(newrelic=window.NREUM);var a=["setPageViewName","addPageAction","setCustomAttribute","finished","addToTrace","inlineHit","noticeError"];o(a,function(t,e){window.NREUM[e]=n("api-"+e)}),e.exports=window.NREUM},{1:22,2:23,handle:"D5DuLP"}],gos:[function(t,e){e.exports=t("7eSDFh")},{}],"7eSDFh":[function(t,e){function n(t,e,n){if(r.call(t,e))return t[e];var o=n();if(Object.defineProperty&&Object.keys)try{return Object.defineProperty(t,e,{value:o,writable:!0,enumerable:!1}),o}catch(i){}return t[e]=o,o}var r=Object.prototype.hasOwnProperty;e.exports=n},{}],D5DuLP:[function(t,e){function n(t,e,n){return r.listeners(t).length?r.emit(t,e,n):void(r.q&&(r.q[t]||(r.q[t]=[]),r.q[t].push(e)))}var r=t("ee").create();e.exports=n,n.ee=r,r.q={}},{ee:"QJf3ax"}],handle:[function(t,e){e.exports=t("D5DuLP")},{}],XL7HBI:[function(t,e){function n(t){var e=typeof t;return!t||"object"!==e&&"function"!==e?-1:t===window?0:i(t,o,function(){return r++})}var r=1,o="nr@id",i=t("gos");e.exports=n},{gos:"7eSDFh"}],id:[function(t,e){e.exports=t("XL7HBI")},{}],G9z0Bl:[function(t,e){function n(){var t=p.info=NREUM.info,e=f.getElementsByTagName("script")[0];if(t&&t.licenseKey&&t.applicationID&&e){s(d,function(e,n){e in t||(t[e]=n)});var n="https"===u.split(":")[0]||t.sslForHttp;p.proto=n?"https://":"http://",a("mark",["onload",i()]);var r=f.createElement("script");r.src=p.proto+t.agent,e.parentNode.insertBefore(r,e)}}function r(){"complete"===f.readyState&&o()}function o(){a("mark",["domContent",i()])}function i(){return(new Date).getTime()}var a=t("handle"),s=t(1),c=window,f=c.document;t(2);var u=(""+location).split("?")[0],d={beacon:"bam.nr-data.net",errorBeacon:"bam.nr-data.net",agent:"js-agent.newrelic.com/nr-768.min.js"},p=e.exports={offset:i(),origin:u,features:{}};f.addEventListener?(f.addEventListener("DOMContentLoaded",o,!1),c.addEventListener("load",n,!1)):(f.attachEvent("onreadystatechange",r),c.attachEvent("onload",n)),a("mark",["firstbyte",i()])},{1:22,2:13,handle:"D5DuLP"}],loader:[function(t,e){e.exports=t("G9z0Bl")},{}],22:[function(t,e){function n(t,e){var n=[],o="",i=0;for(o in t)r.call(t,o)&&(n[i]=e(o,t[o]),i+=1);return n}var r=Object.prototype.hasOwnProperty;e.exports=n},{}],23:[function(t,e){function n(t,e,n){e||(e=0),"undefined"==typeof n&&(n=t?t.length:0);for(var r=-1,o=n-e||0,i=Array(0>o?0:o);++r<o;)i[r]=t[e+r];return i}e.exports=n},{}],24:[function(t,e){function n(t){return!(t&&"function"==typeof t&&t.apply&&!t[i])}var r=t("ee"),o=t(1),i="nr@original",a=Object.prototype.hasOwnProperty;e.exports=function(t){function e(t,e,r,a){function nrWrapper(){var n,i,s,f;try{i=this,n=o(arguments),s=r&&r(n,i)||{}}catch(d){u([d,"",[n,i,a],s])}c(e+"start",[n,i,a],s);try{return f=t.apply(i,n)}catch(p){throw c(e+"err",[n,i,p],s),p}finally{c(e+"end",[n,i,f],s)}}return n(t)?t:(e||(e=""),nrWrapper[i]=t,f(t,nrWrapper),nrWrapper)}function s(t,r,o,i){o||(o="");var a,s,c,f="-"===o.charAt(0);for(c=0;c<r.length;c++)s=r[c],a=t[s],n(a)||(t[s]=e(a,f?s+o:o,i,s))}function c(e,n,r){try{t.emit(e,n,r)}catch(o){u([o,e,n,r])}}function f(t,e){if(Object.defineProperty&&Object.keys)try{var n=Object.keys(t);return n.forEach(function(n){Object.defineProperty(e,n,{get:function(){return t[n]},set:function(e){return t[n]=e,e}})}),e}catch(r){u([r])}for(var o in t)a.call(t,o)&&(e[o]=t[o]);return e}function u(e){try{t.emit("internal-error",e)}catch(n){}}return t||(t=r),e.inPlace=s,e.flag=i,e}},{1:23,ee:"QJf3ax"}]},{},["G9z0Bl",4,11,5]);
+;NREUM.info={beacon:"bam.nr-data.net",errorBeacon:"bam.nr-data.net",licenseKey:"80db82b716",applicationID:"17871747",sa:1,agent:"js-agent.newrelic.com/nr-768.min.js"}
+</script>
+
+
+
+<!-- <script>
+/* STICKY RIGHT COLUMN BIT */
+/* SEPT 15 2015 - CC */
+(function () {
+    var timer = false,
+        stickyDiv = document.getElementById('adContainerDiv2'),
+        beenSticky = false;
+
+    //CAPTURE THE WINDOW SCROLL
+    if(window.top.addEventListener){
+        window.top.addEventListener('scroll',scrolltop,false);
+    }else{
+        window.top.attachEvent('scroll',scrolltop);
+    }
+
+    function scrolltop(){
+        var windowpos =  ( (window.top.pageYOffset || window.top.document.scrollTop)  - (window.top.document.clientTop || 0) || 0) ;
+        if (windowpos >= stickyDiv.offsetTop && !beenSticky) {
+            clearSticky();
+            stickyDiv.classList.add('NVIEWSTICKYAD');
+        } else {
+            clearTimeout(timer);
+            timer = false;
+            stickyDiv.classList.remove('NVIEWSTICKYAD');
+        }
+    }
+
+    function clearSticky () {
+        if (!timer) {
+            timer = setTimeout(function () {
+                stickyDiv.classList.remove('NVIEWSTICKYAD');
+                beenSticky = true;
+            }, 45000); // THIS IS WHERE YOU SET THE DELAY IN MS // TOO LITTLE MIGHT CAUSE VIEWABILITY TRACKERS TO BE FUCKED UP (MORE)
+        }
+    }
+})();
+</script> -->
+
+
+
+<script type="text/javascript">window.NREUM||(NREUM={});NREUM.info={"beacon":"bam.nr-data.net","licenseKey":"80db82b716","applicationID":"17962629","transactionName":"NlxSbEBYXkYAVkQNWQ8WZUpbFllbBVBISkYJSQ==","queueTime":0,"applicationTime":8,"atts":"GhtRGghCTUg=","errorBeacon":"bam.nr-data.net","agent":""}</script>
+
+
+<script type="text/javascript">
+
+        q = $("#theFrame")
+        o = $('#disqus_thread')
+        o.innerHTML = ""
+
+//Inject disqus comment box
+
+function addDisqus(){
+        setTimeout(
+                function(){
+                        checkDisqus()
+                },200
+        )
+        s = document.createElement('script')
+        o.append(s);
+        window.disqus_no_style = true;
+        
+        //o.style.display = "block"
+}
+
+function checkDisqus(){
+        num = Math.floor(Math.random() * 30) + 15
+        setTimeout(
+                function(){
+                        checkDisqus()
+                }
+                ,(num * 1000)
+        )
+}
+</script>
+
+</body></html>
