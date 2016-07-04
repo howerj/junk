@@ -1,12 +1,38 @@
-/* http://www.jsoftware.com/jwiki/Essays/Incunabulum */
-typedef char C;typedef long I;
+/* See: https://news.ycombinator.com/item?id=8533843
+ * And: http://code.jsoftware.com/wiki/Essays/Incunabulum
+ *
+ * Examples:
+ *
+ *	3+7
+ *	a=3+7
+ *	a,a,a
+ *	b=a,a,a
+ *	{b
+ *	b+9
+ *	p=2,3,5,7
+ *	2{p
+ *	{p
+ *	~8
+ *	<~8
+ *	#~8
+ *	4#3
+ *	c=b#2
+ *	c,c
+ *
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+typedef char C;typedef intptr_t I;
 typedef struct a{I t,r,d[3],p[2];}*A;
 #define P printf
 #define R return
 #define V1(f) A f(w)A w;
 #define V2(f) A f(a,w)A a,w;
 #define DO(n,x) {I i=0,_n=(n);for(;i<_n;++i){x;}}
-I *ma(n){R(I*)malloc(n*4);}mv(d,s,n)I *d,*s;{DO(n,d[i]=s[i]);}
+I *ma(n){R(I*)calloc(n*8,1);}mv(d,s,n)I *d,*s;{DO(n,d[i]=s[i]);}
 tr(r,d)I *d;{I z=1;DO(r,z=z*d[i]);R z;}
 A ga(t,r,d)I *d;{A z=(A)ma(5+tr(r,d));z->t=t,z->r=r,mv(z->d,d,r);
  R z;}
@@ -40,4 +66,4 @@ verb(c){I i=0;for(;vt[i];)if(vt[i++]==c)R i;R 0;}
 I *wd(s)C *s;{I a,n=strlen(s),*e=ma(n+1);C c;
  DO(n,e[i]=(a=noun(c=s[i]))?a:(a=verb(c))?a:c);e[n]=0;R e;}
 
-main(){C s[99];while(gets(s))pr(ex(wd(s)));}
+int main(void){C s[99];while(gets(s))pr(ex(wd(s)));}
