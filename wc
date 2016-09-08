@@ -1,0 +1,11 @@
+#!/usr/bin/awk -f
+
+{
+	chars += length($0) + 1;
+	words += NF
+	lines++
+}
+
+END {
+	print lines, words, chars
+}
