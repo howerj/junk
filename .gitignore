@@ -1,0 +1,6 @@
+*.a
+core
+*.log
+*.o
+mem
+vgcore.*
