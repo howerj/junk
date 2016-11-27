@@ -1,4 +1,4 @@
-/*http://rosettacode.org/wiki/LZW_compression#C*.
+/*http://rosettacode.org/wiki/LZW_compression#C*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
