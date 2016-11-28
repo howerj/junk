@@ -1,8 +1,16 @@
 TARGET=compress
+AR      := ar
+CFLAGS  ?= -Wall -Wextra -std=c99
+CC      ?= gcc
+TARGET  = compress
 
-all:
+all: ${TARGET}
 
-compress: 
+libcompress.a: rle.o lzss.o io.o
+	${AR} rcs $@ $^
+
+${TARGET}: libcompress.a main.o
+	${CC} ${CFLAGS} $^ -o $@
 
 clean:
-	rm -f ${TARGET}
+	rm -f ${TARGET} *.a *.o
