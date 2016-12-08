@@ -14,6 +14,7 @@
  * it is encoded as the length of the data that differs plus that
  * data, up to 128 bytes can be encoded this way.
  **/
+#include "libcompress.h"
 #include <assert.h>
 #include <errno.h>
 #include <inttypes.h>
@@ -22,11 +23,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define  VERSION            (0x2) /* version of binary output format */
-#define  INVALID_HASH       (0xFFFFu) /* fletcher16 hash can never be this value */
-#define  INVALID_SIZE_FIELD (0x0) /* the size field, that follows, is invalid */
-#define  INVALID_HASH_FIELD (0x0) /* the hash field, that follows, is invalid */
 
 enum mode { InvalidMode, DecodeMode, EncodeMode };
 
@@ -37,26 +33,6 @@ enum errors {
 	ErrorOutEoF         =  -3, /* expected to output bytes, but encountered and error */
 	ErrorArg            =  -4, /* invalid command line args */
 	ErrorFile           =  -5, /* could not open file, for whatever reason */
-	ErrorInvalidHeader  =  -6  /* invalid header */
-};
-
-enum header { /* */
-	eMagic0,     eMagic1,     eMagic2,     eMagic3,
-	eVersion,    eReserved0,  eReserved1,  eEndMagic,
-	eSizeValid,  eHashValid,  eHash0,      eHash1,
-	eReserved2,  eReserved3,  eReserved4,  eReserved5,
-	eSize0,      eSize1,      eSize2,      eSize3,   
-	eSize4,      eSize5,      eSize6,      eSize7
-};
-
-static uint8_t header[24] = { 
-	0xFF,    'R', 'L', 'E',   /* magic numbers to identify file type */
-	VERSION,  0,   0,   0xFF, /* file version number, reserved bytes, end byte */
-	INVALID_SIZE_FIELD, INVALID_HASH_FIELD, (uint8_t)INVALID_HASH, (uint8_t)(INVALID_HASH >> 8),
-	0,        0,   0,   0,    /* reserved */
-
-	0,        0,   0,   0,    /* size */
-	0,        0,   0,   0,    /* size */
 };
 
 struct rle { /* contains bookkeeping information for encoding/decoding */
@@ -64,21 +40,7 @@ struct rle { /* contains bookkeeping information for encoding/decoding */
 	jmp_buf *jb;          /* place to jump on error */
 	FILE *in, *out;       /* input and output files */
 	uint64_t read, wrote; /* bytes read in and wrote */
-	uint16_t hash;        /* hash of original data */
 };
-
-static inline uint16_t fletcher16(uint8_t *data, size_t count)
-{ /* https://en.wikipedia.org/wiki/Fletcher%27s_checksum */
-	uint16_t x = 0, y = 0;
-	size_t i;
-	/* this function needs splitting into a start function,
-	 * a hash function and an end function */
-	for(i = 0; i < count; i++) {
-		x = (x + data[i]) & 255;
-		y = (y + x) & 255;
-	}
-	return (y << 8) | x;
-}
 
 static inline int may_fgetc(struct rle *r)
 { /* if the input ends now, that is okay */
@@ -158,7 +120,6 @@ static void print_results(int verbose, struct rle *r, int encode)
 	fputs(encode ? "encode:\n" : "decode:\n", stderr);
 	fprintf(stderr, "\tread   %"PRIu64"\n", r->read);
 	fprintf(stderr, "\twrote  %"PRIu64"\n", r->wrote);
-	fprintf(stderr, "\thash   %"PRIu16"\n", r->hash);
 }
 
 static void encode(struct rle *r)
@@ -191,16 +152,14 @@ end: /* no more input */
 		must_encode_buf(r, buf, &idx);
 }
 
-int run_length_encoder(int headerless, int verbose, FILE *in, FILE *out)
+int run_length_encoder(int verbose, FILE *in, FILE *out)
 {
 	assert(in && out);
 	jmp_buf jb;
-	struct rle r = { EncodeMode, &jb, in, out, 0, 0, 0};
+	struct rle r = { EncodeMode, &jb, in, out, 0, 0};
 	int rval;
 	if((rval = setjmp(jb)))
 		return rval;
-	if(!headerless)
-		must_block_io(&r, header, sizeof(header), 'w');
 	encode(&r);
 	print_results(verbose, &r, 1);
 	return Ok;
@@ -225,22 +184,14 @@ static void decode(struct rle *r)
 	}
 }
 
-int run_length_decoder(int headerless, int verbose, FILE *in, FILE *out)
+int run_length_decoder(int verbose, FILE *in, FILE *out)
 {
 	assert(in && out);
 	jmp_buf jb;
-	struct rle r = { DecodeMode, &jb, in, out, 0, 0, 0};
-	char head[sizeof(header)] = {0};
+	struct rle r = { DecodeMode, &jb, in, out, 0, 0};
 	int rval;
 	if((rval = setjmp(jb)))
 		return rval;
-	if(!headerless) {
-		must_block_io(&r, head, sizeof(head), 'r');
-		if(memcmp(head, header, eEndMagic+1)) {
-			fprintf(stderr, "error: invalid header\n");
-			return ErrorInvalidHeader;
-		}
-	}
 	decode(&r);
 	print_results(verbose, &r, 0);
 	return Ok;
