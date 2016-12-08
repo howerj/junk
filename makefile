@@ -12,7 +12,7 @@ libcompress.a: rle.o lzss.o io.o
 ${TARGET}: libcompress.a main.o
 	${CC} ${CFLAGS} $^ -o $@
 
-unit: libcompress.a unit.o
+unit: unit.o libcompress.a
 	${CC} ${CFLAGS} $^ -o $@
 
 test: unit

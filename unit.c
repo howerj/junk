@@ -11,6 +11,7 @@
 /**********************/
 
 #include <assert.h>
+#include <inttypes.h>
 #include <setjmp.h>
 #include <signal.h>
 #include <stdint.h>
@@ -191,23 +192,31 @@ static unsigned unit_test_end(test_t *t, const char *unit_name)
 
 /*** end minimal test framework ***/
 
-int libcompress_unit_tests(int colorize, int silent)
+int libcompress_unit_tests(FILE *output, int colorize, int silent)
 {
 	tb.is_silent = silent;
 	tb.color_on  = colorize;
 
-	unit_test_start(&tb, "libcompress", stdout);
+	unit_test_start(&tb, "libcompress", output);
 	{
-		print_note(&tb, "avoid warnings");
-		test(&tb, 1); 
-		must(&tb, 1); 
-		state(&tb, printf("test")); 
+		uint8_t buf[128] = {0};
+		io_t *o = NULL;
+		print_note(&tb, "Testing IO functions");
+		must(&tb, o = io_string_external(IO_RW, sizeof(buf), buf));
+		test(&tb, 'c' == io_putc('c', o));
+		test(&tb, '\n' == io_putc('\n', o));
+		test(&tb, 'c' == io_getc(o));
+		test(&tb, '\n' == io_getc(o));
+		test(&tb, 2 == io_get_chars_read(o));
+		test(&tb, 2 == io_get_chars_written(o));
+		test(&tb, io_get_chars_written(o) == io_get_chars_read(o));
+		state(&tb, io_free(o));
 	}
 	return !!unit_test_end(&tb, "libcompress");
 }
 
 int main(void)
 {
-	return libcompress_unit_tests(0, 0);
+	return libcompress_unit_tests(stdout, 0, 0);
 }
 

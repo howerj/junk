@@ -13,7 +13,7 @@ static void fail_if(int test, const char *msg){
                       perror(msg);
               else if(msg)
                       fputs(msg, stderr);
-              exit(-1);
+              exit(EXIT_FAILURE);
        }
 }
 
@@ -41,14 +41,20 @@ struct io {
 
 	size_t written;
 	size_t read;
+
+	fletcher16_t rhash;
+	fletcher16_t whash;
 };
 
 static io_t *new_io(void)
 {
-	return calloc_or_fail(sizeof(struct io));
+	io_t *r = calloc_or_fail(sizeof(*r));
+	r->rhash = io_fletcher16_start();
+	r->whash = io_fletcher16_start();
+	return r;
 }
 
-void free_io(io_t *o)
+void io_free(io_t *o)
 {
 	assert(o && (!!(o->file) ^ !!(o->buf)));
 	if(o->buf && o->we_own_the_string)
@@ -91,8 +97,10 @@ int io_getc(io_t *o)
 {
 	assert(o);
 	int r = o->get(o);
-	if(r != EOF)
+	if(r != EOF) {
 		o->read++;
+		io_fletcher16_update(&o->rhash, r);
+	}
 	return r;
 }
 
@@ -100,8 +108,11 @@ int io_putc(int c, io_t *o)
 {
 	assert(o);
 	int r = o->put(c, o);
-	if(r == c)
+	if(r == c) {
 		o->written++;
+		if(c != EOF)
+			io_fletcher16_update(&o->whash, c);
+	}
 	return r;
 }
 
@@ -150,6 +161,17 @@ size_t io_get_chars_read(io_t *o)
 	return o->read;
 }
 
+uint16_t io_get_hash_written(io_t *o)
+{
+	return io_fletcher16_end(&o->whash);
+}
+
+uint16_t io_get_hash_read(io_t *o)
+{
+	return io_fletcher16_end(&o->rhash);
+}
+
+
 static int string_putc(int c, io_t *o)
 {
 	uint8_t *p;
@@ -183,14 +205,14 @@ static int string_getc(io_t *o)
 	return o->rindex < o->max ? o->buf[o->rindex++] : EOF;
 }
 
-io_t *io_string(unsigned ops, size_t size)
+static io_t *io_string_allocator(unsigned ops, size_t size, int allocate)
 {
 	io_t *o = new_io();
-	o->readable = ops & IO_READ;
-	o->writeable = ops & IO_WRITE;
-	o->growable = ops & IO_REALLOC;
+	o->readable  = (ops & IO_READ)    >> 0;
+	o->writeable = (ops & IO_WRITE)   >> 1;
+	o->growable  = (ops & IO_REALLOC) >> 2;
 	o->we_own_the_string = 1;
-	if(size)
+	if(allocate)
 		o->buf = calloc_or_fail(size+1); /**< NUL terminate just in case */
 	o->max = size;
 	o->put = string_putc;
@@ -198,15 +220,37 @@ io_t *io_string(unsigned ops, size_t size)
 	return o;
 }
 
+io_t *io_string(unsigned ops, size_t size)
+{
+	return io_string_allocator(ops, size, 1);
+}
+
 io_t *io_string_external(unsigned ops, size_t size, uint8_t *initial)
 {
-	io_t *o = io_string(ops, size);
+	io_t *o = io_string_allocator(ops, size, 0);
 	o->we_own_the_string = 0;
 	o->buf = initial;
 	return o;
 }
 
-uint16_t io_fletcher16(uint8_t *data, size_t count)
+fletcher16_t io_fletcher16_start(void)
+{
+	fletcher16_t f = { 0, 0 };
+	return f;
+}
+
+void io_fletcher16_update(fletcher16_t *f, uint8_t b)
+{
+	f->x = (f->x + b)    & 255;
+	f->y = (f->y + f->x) & 255;
+}
+
+uint16_t io_fletcher16_end(fletcher16_t *f)
+{
+	return (f->y << 8) | f->x;
+}
+
+uint16_t io_fletcher16_block(uint8_t *data, size_t count)
 { /* https://en.wikipedia.org/wiki/Fletcher%27s_checksum */
 	uint16_t x = 0, y = 0;
 	size_t i;
