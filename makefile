@@ -1,6 +1,6 @@
 TARGET=compress
 AR      := ar
-CFLAGS  ?= -Wall -Wextra -std=c99
+CFLAGS  ?= -Wall -Wextra -std=c99 
 CC      ?= gcc
 TARGET  = compress
 

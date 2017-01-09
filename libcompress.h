@@ -24,12 +24,14 @@ typedef struct {
 	uint16_t y;
 } fletcher16_t;
 
+void *io_calloc_or_fail(size_t n);
 void io_free(io_t *o);
 io_t *io_file(FILE *f);
 int io_getc(io_t *o);
 int io_putc(int c, io_t *o);
 int io_must_getc(io_t *o);
 int io_must_putc(int c, io_t *o);
+int io_flush(io_t *o);
 io_t *io_string(unsigned ops, size_t size);
 const char *io_strerror(void);
 uint8_t *io_get_string(io_t *o);
@@ -46,6 +48,15 @@ uint16_t io_get_hash_read(io_t *o);
 
 size_t io_read(uint8_t *buf, size_t size, io_t *o);
 size_t io_write(uint8_t *buf, size_t size, io_t *o);
+
+struct lzss;
+typedef struct lzss lzss_t;
+
+void lzss_free(lzss_t *l);
+lzss_t *lzss_new(FILE *infile, FILE *outfile);
+void lzss_encode(lzss_t *l);
+void lzss_decode(lzss_t *l);
+int main_lzss(int argc, char *argv[]);
 
 #ifdef __cplusplus
 }

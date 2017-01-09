@@ -4,29 +4,16 @@
 #include <stdlib.h>
 #include <assert.h>
 
+/**@todo add io_printf, io_scanf */
+
 typedef int (*func_putc)(int c, io_t *);
 typedef int (*func_getc)(io_t *);
-
-static void fail_if(int test, const char *msg){
-       if(test){
-              if(errno && msg)
-                      perror(msg);
-              else if(msg)
-                      fputs(msg, stderr);
-              exit(EXIT_FAILURE);
-       }
-}
-
-static void *calloc_or_fail(size_t n) {
-        void *v;
-	errno = 0;
-        fail_if(!(v = calloc(n,1)), "calloc");
-        return v;
-}
+typedef int (*func_flush)(io_t *);
 
 struct io {
 	func_putc put;
 	func_getc get;
+	func_flush flush;
 
 	FILE *file;
 
@@ -46,9 +33,27 @@ struct io {
 	fletcher16_t whash;
 };
 
+static void fail_if(int test, const char *msg){
+       if(test){
+              if(errno && msg)
+                      perror(msg);
+              else if(msg)
+                      fputs(msg, stderr);
+              exit(EXIT_FAILURE);
+       }
+}
+
+void *io_calloc_or_fail(size_t n) 
+{
+        void *v;
+	errno = 0;
+        fail_if(!(v = calloc(n, 1)), "calloc");
+        return v;
+}
+
 static io_t *new_io(void)
 {
-	io_t *r = calloc_or_fail(sizeof(*r));
+	io_t *r = io_calloc_or_fail(sizeof(*r));
 	r->rhash = io_fletcher16_start();
 	r->whash = io_fletcher16_start();
 	return r;
@@ -77,12 +82,19 @@ static int file_getc(io_t *o)
 	return fgetc(o->file);
 }
 
+static int file_flush(io_t *o)
+{
+	assert(o && o->file);
+	return fflush(o->file);
+}
+
 io_t *io_file(FILE *f)
 {
 	assert(f);
 	io_t *o = new_io();
 	o->put = file_putc;
 	o->get = file_getc;
+	o->flush = file_flush;
 	o->file = f;
 	return o;
 }
@@ -114,6 +126,12 @@ int io_putc(int c, io_t *o)
 			io_fletcher16_update(&o->whash, c);
 	}
 	return r;
+}
+
+int io_flush(io_t *o)
+{
+	assert(o);
+	return o->flush(o);
 }
 
 /**
@@ -234,6 +252,12 @@ static int string_getc(io_t *o)
 	return o->rindex < o->max ? o->buf[o->rindex++] : EOF;
 }
 
+static int string_flush(io_t *o)
+{
+	assert(o);
+	return 0;
+}
+
 static io_t *io_string_allocator(unsigned ops, size_t size, int allocate)
 {
 	io_t *o = new_io();
@@ -242,10 +266,11 @@ static io_t *io_string_allocator(unsigned ops, size_t size, int allocate)
 	o->growable  = (ops & IO_REALLOC) >> 2;
 	o->we_own_the_string = 1;
 	if(allocate)
-		o->buf = calloc_or_fail(size+1); /**< NUL terminate just in case */
+		o->buf = io_calloc_or_fail(size+1); /**< NUL terminate just in case */
 	o->max = size;
 	o->put = string_putc;
 	o->get = string_getc;
+	o->flush = string_flush;
 	return o;
 }
 

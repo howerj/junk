@@ -10,3 +10,5 @@ lzss
 rle
 *.out
 *.log
+core
+*.vgcore

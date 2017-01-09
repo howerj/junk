@@ -6,6 +6,7 @@
  *  @email      howe.r.j.89@gmail.com 
  *  @todo       add checksum, length and whether encoded succeeded (size decreased) to header
  *  @todo       turn into library (read/write to strings as well as files, man pages)
+ *  @todo       Add back in main function for testing purposes
  * 
  * The encoder works on binary data, it encodes successive runs of
  * bytes as a length and the repeated byte up to runs of 127, or
