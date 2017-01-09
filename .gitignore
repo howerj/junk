@@ -4,3 +4,9 @@
 *~
 compress
 unit
+*.rle
+*.lzss
+lzss
+rle
+*.out
+*.log

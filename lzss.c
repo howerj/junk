@@ -1,5 +1,6 @@
 /** From http://oku.edu.mie-u.ac.jp/~okumura/compression/lzss.c
- * @todo turn into library
+ * @todo Turn into library
+ * @todo Document format and how encoding/decoding works
  * LZSS encoder-decoder (Haruhiko Okumura; public domain) */
 
 #include <stdio.h>
@@ -12,18 +13,18 @@
 #define N (1 << EI)		/* buffer size */
 #define F ((1 << EJ) + 1)	/* lookahead buffer size */
 
-int bit_buffer = 0, bit_mask = 128;
-unsigned long codecount = 0, textcount = 0;
-unsigned char buffer[N * 2];
-FILE *infile, *outfile;
+static int bit_buffer = 0, bit_mask = 128;
+static unsigned long codecount = 0, textcount = 0;
+static unsigned char buffer[N * 2];
+static FILE *infile, *outfile;
 
-void error(void)
+static void error(void)
 {
-	printf("Output error\n");
+	fprintf(stderr, "Output error\n");
 	exit(1);
 }
 
-void putbit1(void)
+static void putbit1(void)
 {
 	bit_buffer |= bit_mask;
 	if ((bit_mask >>= 1) == 0) {
@@ -35,7 +36,7 @@ void putbit1(void)
 	}
 }
 
-void putbit0(void)
+static void putbit0(void)
 {
 	if ((bit_mask >>= 1) == 0) {
 		if (fputc(bit_buffer, outfile) == EOF)
@@ -46,7 +47,7 @@ void putbit0(void)
 	}
 }
 
-void flush_bit_buffer(void)
+static void flush_bit_buffer(void)
 {
 	if (bit_mask != 128) {
 		if (fputc(bit_buffer, outfile) == EOF)
@@ -55,7 +56,7 @@ void flush_bit_buffer(void)
 	}
 }
 
-void output1(int c)
+static void output1(int c)
 {
 	int mask;
 
@@ -69,7 +70,7 @@ void output1(int c)
 	}
 }
 
-void output2(int x, int y)
+static void output2(int x, int y)
 {
 	int mask;
 
@@ -90,7 +91,7 @@ void output2(int x, int y)
 	}
 }
 
-void encode(void)
+static void encode(void)
 {
 	int i, j, f1, x, y, r, s, bufferend, c;
 
@@ -142,12 +143,12 @@ void encode(void)
 		}
 	}
 	flush_bit_buffer();
-	printf("text:  %ld bytes\n", textcount);
-	printf("code:  %ld bytes (%ld%%)\n",
-	       codecount, (codecount * 100) / textcount);
+	fprintf(stderr, "text:  %ld bytes\ncode:  %ld bytes (%ld%%)\n", 
+		textcount,
+		codecount, (codecount * 100) / textcount);
 }
 
-int getbit(int n)
+static int getbit(int n)
 { /* get n bits */
 	int i, x;
 	static int buf, mask = 0;
@@ -167,7 +168,7 @@ int getbit(int n)
 	return x;
 }
 
-void decode(void)
+static void decode(void)
 {
 	int i, j, k, r, c;
 
@@ -196,3 +197,42 @@ void decode(void)
 	}
 }
 
+int main_lzss(int argc, char *argv[])
+{
+	int enc;
+	char *s;
+
+	if (argc != 4) {
+		fprintf(stderr, "Usage: lzss e/d infile outfile\n\te = encode\td = decode\n");
+		return 1;
+	}
+	s = argv[1];
+	if (s[1] == 0 && (*s == 'd' || *s == 'D' || *s == 'e' || *s == 'E'))
+		enc = (*s == 'e' || *s == 'E');
+	else {
+		fprintf(stderr, "? %s\n", s);
+		return 1;
+	}
+	if ((infile = fopen(argv[2], "rb")) == NULL) {
+		fprintf(stderr, "? %s\n", argv[2]);
+		return 1;
+	}
+	if ((outfile = fopen(argv[3], "wb")) == NULL) {
+		fprintf(stderr, "? %s\n", argv[3]);
+		return 1;
+	}
+	if (enc)
+		encode();
+	else
+		decode();
+	fclose(infile);
+	fclose(outfile);
+	return 0;
+}
+
+#ifdef LZSS_MAIN
+int main(int argc, char *argv[])
+{
+	return main_lzss(argc, argv);
+}
+#endif

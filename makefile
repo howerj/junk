@@ -18,5 +18,14 @@ unit: unit.o libcompress.a
 test: unit
 	./$<
 
+lzss: lzss.c io.o
+	${CC} ${CFLAGS} -DLZSS_MAIN $^ -o $@
+
+# Example run of lzss program
+lzss.out: lzss
+	./lzss e lzss.c lzss.c.out
+	./lzss d lzss.c.out lzss.out
+	cmp lzss.c lzss.out
+
 clean:
-	rm -f ${TARGET} *.a *.o
+	rm -f ${TARGET} *.a *.o *.lzss *.rle *.out *.log

@@ -44,6 +44,9 @@ uint16_t io_fletcher16_end(fletcher16_t *f);
 uint16_t io_get_hash_written(io_t *o);
 uint16_t io_get_hash_read(io_t *o);
 
+size_t io_read(uint8_t *buf, size_t size, io_t *o);
+size_t io_write(uint8_t *buf, size_t size, io_t *o);
+
 #ifdef __cplusplus
 }
 #endif

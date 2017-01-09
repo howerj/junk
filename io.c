@@ -116,6 +116,35 @@ int io_putc(int c, io_t *o)
 	return r;
 }
 
+/**
+@note obviously this is super inefficient, io_putc and io_getc
+should be rewritten to be in terms of io_write and io_read, not
+this way around
+**/
+
+size_t io_read(uint8_t *buf, size_t size, io_t *o)
+{
+	size_t i = 0;
+	int c = 0;
+	func_getc get = o->get;
+	for(i = 0; i < size; i++)
+		if(EOF == (c = get(o)))
+			return i;
+		else
+			buf[i] = c;
+	return i;
+}
+
+size_t io_write(uint8_t *buf, size_t size, io_t *o)
+{
+	size_t i = 0;
+	func_putc put = o->put;
+	for(i = 0; i < size; i++)
+		if(buf[i] != put(buf[i], o))
+			return i;
+	return i;
+}
+
 const char *io_strerror(void)
 {
 	static const char *unknown = "unknown reason";
