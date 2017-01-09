@@ -53,9 +53,9 @@ struct lzss;
 typedef struct lzss lzss_t;
 
 void lzss_free(lzss_t *l);
-lzss_t *lzss_new(FILE *infile, FILE *outfile);
-void lzss_encode(lzss_t *l);
-void lzss_decode(lzss_t *l);
+lzss_t *lzss_new(io_t *in, io_t *out);
+int lzss_encode(lzss_t *l); /* returns negative on failure to encode */
+int lzss_decode(lzss_t *l); /* returns negative on failure to decode */
 int main_lzss(int argc, char *argv[]);
 
 #ifdef __cplusplus

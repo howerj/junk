@@ -1,6 +1,7 @@
 TARGET=compress
 AR      := ar
-CFLAGS  ?= -Wall -Wextra -std=c99 
+# -pg -g -fprofile-arcs -ftest-coverage
+CFLAGS  ?= -Wall -Wextra -std=c99 -pedantic 
 CC      ?= gcc
 TARGET  = compress
 
@@ -27,5 +28,11 @@ lzss.out: lzss
 	./lzss d lzss.c.out lzss.out
 	cmp lzss.c lzss.out
 
+zeros.data: /dev/zero
+	dd if=$< bs=1024 count=1024 of=$@
+
+zeros.lzss: lzss zeros.data
+	time ./$< e zeros.data $@
+
 clean:
-	rm -f ${TARGET} *.a *.o *.lzss *.rle *.out *.log
+	rm -f ${TARGET} *.a *.o *.lzss *.rle *.out *.log *.data

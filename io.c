@@ -1,10 +1,12 @@
+/**@brief I/O wrapper library */
 #include "libcompress.h"
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
 
-/**@todo add io_printf, io_scanf */
+/**@todo add io_printf, io_scanf
+ * @todo make io_fletcher16_update optional */
 
 typedef int (*func_putc)(int c, io_t *);
 typedef int (*func_getc)(io_t *);
@@ -121,9 +123,10 @@ int io_putc(int c, io_t *o)
 	assert(o);
 	int r = o->put(c, o);
 	if(r == c) {
-		o->written++;
-		if(c != EOF)
+		if(c != EOF) {
+			o->written++;
 			io_fletcher16_update(&o->whash, c);
+		}
 	}
 	return r;
 }
@@ -179,7 +182,7 @@ int io_must_putc(int c, io_t *o)
 	errno = 0;
 	r = o->put(c, o);
 	if(r != c) {
-		fprintf(stderr, "failed to put %c to %p: %s\n", c, o, io_strerror());
+		fprintf(stderr, "failed to put %c to %p: %s\n", c, (void*)o, io_strerror());
 		exit(EXIT_FAILURE);
 	}
 	return r;
@@ -192,7 +195,7 @@ int io_must_getc(io_t *o)
 	errno = 0;
 	r = o->get(o);
 	if(r == EOF) {
-		fprintf(stderr, "failed to get character from %p: %s\n", o, io_strerror());
+		fprintf(stderr, "failed to get character from %p: %s\n", (void*)o, io_strerror());
 		exit(EXIT_FAILURE);
 	}
 	return r;
@@ -200,24 +203,27 @@ int io_must_getc(io_t *o)
 
 size_t io_get_chars_written(io_t *o)
 {
+	assert(o);
 	return o->written;
 }
 
 size_t io_get_chars_read(io_t *o)
 {
+	assert(o);
 	return o->read;
 }
 
 uint16_t io_get_hash_written(io_t *o)
 {
+	assert(o);
 	return io_fletcher16_end(&o->whash);
 }
 
 uint16_t io_get_hash_read(io_t *o)
 {
+	assert(o);
 	return io_fletcher16_end(&o->rhash);
 }
-
 
 static int string_putc(int c, io_t *o)
 {
