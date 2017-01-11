@@ -24,6 +24,7 @@ typedef struct {
 	uint16_t y;
 } fletcher16_t;
 
+FILE *io_fopen_or_fail(const char *file, const char *mode);
 void *io_calloc_or_fail(size_t n);
 void io_free(io_t *o);
 io_t *io_file(FILE *f);
@@ -45,18 +46,19 @@ void io_fletcher16_update(fletcher16_t *f, uint8_t b);
 uint16_t io_fletcher16_end(fletcher16_t *f);
 uint16_t io_get_hash_written(io_t *o);
 uint16_t io_get_hash_read(io_t *o);
-
 size_t io_read(uint8_t *buf, size_t size, io_t *o);
 size_t io_write(uint8_t *buf, size_t size, io_t *o);
+void io_rewind(io_t *o);
 
-struct lzss;
-typedef struct lzss lzss_t;
+/**@todo versions should be provided for strings and for files, not just io_t types */
 
-void lzss_free(lzss_t *l);
-lzss_t *lzss_new(io_t *in, io_t *out);
-int lzss_encode(lzss_t *l); /* returns negative on failure to encode */
-int lzss_decode(lzss_t *l); /* returns negative on failure to decode */
-int main_lzss(int argc, char *argv[]);
+int lzss_encode(io_t *in, io_t *out); /* returns negative on failure to encode */
+int lzss_decode(io_t *in, io_t *out); /* returns negative on failure to decode */
+int main_lzss(int argc, char **argv);
+
+int run_length_encode(io_t *in, io_t *out);
+int run_length_decode(io_t *in, io_t *out);
+int main_rle(int argc, char **argv);
 
 #ifdef __cplusplus
 }

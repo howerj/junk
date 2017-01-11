@@ -4,9 +4,7 @@
  *  @copyright  Copyright 2016 Richard James Howe.
  *  @license    MIT (see https://opensource.org/licenses/MIT)
  *  @email      howe.r.j.89@gmail.com 
- *  @todo       add checksum, length and whether encoded succeeded (size decreased) to header
  *  @todo       turn into library (read/write to strings as well as files, man pages)
- *  @todo       Add back in main function for testing purposes
  * 
  * The encoder works on binary data, it encodes successive runs of
  * bytes as a length and the repeated byte up to runs of 127, or
@@ -39,29 +37,25 @@ enum errors {
 struct rle { /* contains bookkeeping information for encoding/decoding */
 	enum mode mode;       /* mode of operation */
 	jmp_buf *jb;          /* place to jump on error */
-	FILE *in, *out;       /* input and output files */
-	uint64_t read, wrote; /* bytes read in and wrote */
+	io_t *in, *out;       /* input and output files */
 };
 
 static inline int may_fgetc(struct rle *r)
 { /* if the input ends now, that is okay */
 	assert(r && r->in);
-	int rval = fgetc(r->in);
-	r->read += rval != EOF;
-	return rval;
+	return io_getc(r->in);
 }
 
-static inline int expect_fgetc(struct rle *r)
+static inline int must_fgetc(struct rle *r)
 { /* we expect more input, otherwise our output will be invalid */
 	assert(r && r->in);
 	errno = 0;
-	int c = fgetc(r->in);
+	int c = io_getc(r->in);
 	if(c == EOF) {
 		char *reason = errno ? strerror(errno) : "(unknown reason)";
 		fprintf(stderr, "error: expected more input, %s\n", reason);
 		longjmp(*r->jb, ErrorInEoF);
 	}
-	r->read++;
 	return c;
 }
 
@@ -69,39 +63,26 @@ static inline int must_fputc(struct rle *r, int c)
 { /* we must be able to output a character, otherwise our output is invalid */
 	assert(r && r->out);
 	errno = 0;
-	if(c != fputc(c, r->out)) {
-		char *reason = errno ? strerror(errno) : "(unknown reason)";
-		fprintf(stderr, "error: could not write '%d' to output, %s\n", c, reason);
+	if(c != io_putc(c, r->out)) {
+		fprintf(stderr, "error: could not write '%d' to output, %s\n", c, io_strerror());
 		longjmp(*r->jb, ErrorOutEoF);
 	}
-	r->wrote++;
 	return c;
-}
-
-static inline void increment(struct rle *r, char rw, size_t size)
-{ /* increment the correct counter for reading or writing */
-	assert(r && ((rw == 'w') || (rw == 'r')));
-	if(rw == 'w')
-		r->wrote += size;
-	else
-		r->read  += size;
 }
 
 static inline size_t must_block_io(struct rle *r, void *p, size_t size, char rw)
 { /* the block must be written or read, otherwise something has gone wrong */
 	errno = 0;
 	assert(r && p && ((rw == 'w') || (rw == 'r')));
-	FILE *file = rw == 'w' ? 
+	io_t *file = rw == 'w' ? 
 		r->out : 
 		r->in;
 	size_t ret = rw == 'w' ? 
-		fwrite(p, 1, size, file) : 
-		fread (p, 1, size, file);
-	increment(r, rw, ret);
+		io_write(p, size, file) : 
+		io_read (p, size, file);
 	if(ret != size) {
-		char *reason = errno ? strerror(errno) : "(unknown reason)";
 		char *type   = rw == 'w' ? "write" : "read";
-		fprintf(stderr, "error: could not %s block, %s\n", type, reason);
+		fprintf(stderr, "error: could not %s block, %s\n", type, io_strerror());
 		longjmp(*r->jb, ErrorOutEoF);
 	}
 	return ret;
@@ -112,15 +93,6 @@ static inline void must_encode_buf(struct rle *r, uint8_t *buf, int *idx)
 	must_fputc(r, (*idx)+128);
 	must_block_io(r, buf, *idx, 'w');
 	*idx = 0;
-}
-
-static void print_results(int verbose, struct rle *r, int encode)
-{
-	if(!verbose)
-		return;
-	fputs(encode ? "encode:\n" : "decode:\n", stderr);
-	fprintf(stderr, "\tread   %"PRIu64"\n", r->read);
-	fprintf(stderr, "\twrote  %"PRIu64"\n", r->wrote);
 }
 
 static void encode(struct rle *r)
@@ -153,16 +125,15 @@ end: /* no more input */
 		must_encode_buf(r, buf, &idx);
 }
 
-int run_length_encoder(int verbose, FILE *in, FILE *out)
+int run_length_encode(io_t *in, io_t *out)
 {
 	assert(in && out);
 	jmp_buf jb;
-	struct rle r = { EncodeMode, &jb, in, out, 0, 0};
+	struct rle r = { EncodeMode, &jb, in, out};
 	int rval;
 	if((rval = setjmp(jb)))
 		return rval;
 	encode(&r);
-	print_results(verbose, &r, 1);
 	return Ok;
 }
 
@@ -173,29 +144,101 @@ static void decode(struct rle *r)
 		if(c > 128) { /* process run of literal data */
 			count = c - 128;
 			for(int i = 0; i < count; i++) {
-				c = expect_fgetc(r);
+				c = must_fgetc(r);
 				must_fputc(r, c);
 			}
 		} else { /* process repeated byte */
 			count = c + 1;
-			c = expect_fgetc(r);
+			c = must_fgetc(r);
 			for(int i = 0; i < count; i++)
 				must_fputc(r, c);
 		}
 	}
 }
 
-int run_length_decoder(int verbose, FILE *in, FILE *out)
+int run_length_decode(io_t *in, io_t *out)
 {
 	assert(in && out);
 	jmp_buf jb;
-	struct rle r = { DecodeMode, &jb, in, out, 0, 0};
+	struct rle r = { DecodeMode, &jb, in, out};
 	int rval;
 	if((rval = setjmp(jb)))
 		return rval;
 	decode(&r);
-	print_results(verbose, &r, 0);
 	return Ok;
 }
 
+static void help(void)
+{
+	static const char help_text[] =
+"\nRun Length Encoder and Decoder\n\n\
+	-e\tencode\n\
+	-d\tdecode (mutually exclusive with '-e')\n\
+	-h\tprint help and exit unsuccessfully\n\
+	-\tstop processing command line options\n\n\
+The file parameters are optional, with the possible combinations:\n\
+\n\
+\t0 files specified:\n\t\tinput:  stdin   \n\t\toutput: stdout\n\
+\t1 file  specified:\n\t\tinput:  1st file\n\t\toutput: stdout\n\
+\t2 files specified:\n\t\tinput:  1st file\n\t\toutput: 2nd file\n\
+\n";
+	fputs(help_text, stderr);
+}
 
+static void usage(char *name)
+{
+	assert(name);
+	fprintf(stderr, "usage %s [-(e|d)] [-h] [file.in] [file.out]\n", name);
+}
+
+int main_rle(int argc, char **argv)
+{ 
+	FILE *infile  = stdin, *outfile  = stdout; /* default to using standard streams */
+	io_t *in = NULL, *out = NULL;
+	char *cin = NULL,  *cout = NULL;
+	int r = ErrorArg, i;
+	enum mode mode = InvalidMode;
+	for(i = 1; i < argc && argv[i][0] == '-'; i++) {
+		switch(argv[i][1]) {
+		case '\0': goto done;
+		case 'h':  usage(argv[0]); help(); return ErrorHelp;
+		case 'e':  if(mode) goto fail; mode = EncodeMode; break;
+		case 'd':  if(mode) goto fail; mode = DecodeMode; break;
+		default:   goto fail;
+		}
+	}
+done:
+	if(i < argc) /* first file argument is input file, if argument exists */
+		cin  = argv[i++];
+	if(i < argc) /* second file argument is output file, if argument exists */
+		cout = argv[i++];
+	if(i < argc) /* there should be no more arguments after this */
+		goto fail;
+	if(cin)
+		infile  = io_fopen_or_fail(cin,  "rb");
+	if(cout)
+		outfile = io_fopen_or_fail(cout, "wb");
+
+	in  = io_file(infile);
+	out = io_file(outfile);
+
+	if(mode == InvalidMode) /*default to encode*/
+		mode = EncodeMode;
+	if(mode == EncodeMode)
+		r = run_length_encode(in, out);
+	if(mode == DecodeMode)
+		r = run_length_decode(in, out);
+	io_free(in);
+	io_free(out);
+	return r;
+fail:
+	usage(argv[0]);
+	return ErrorArg;
+}
+
+#ifdef RLE_MAIN 
+int main(int argc, char *argv[])
+{
+	return main_rle(argc, argv);
+}
+#endif

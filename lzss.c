@@ -3,9 +3,12 @@
  * @todo Document format and how encoding/decoding works
  * @todo Correct types (use 'int' less)
  * @todo Add header? Also add statistics grabbing functions
+ * @todo The example program should have its command line arguments brought
+ * into line with the RLE example (the RLE example should be simplified).
  * @todo This implementation is slow, it needs speeding up *a lot*, there are
  * two ways to do this, increase the speed of the search (highest priority) and
  * output speed up the output.
+ * @todo stack allocation versions of encoder/decoder (decided at compile time).
  * LZSS encoder-decoder (Haruhiko Okumura; public domain) */
 
 #include <stdio.h>
@@ -29,13 +32,15 @@ struct lzss {
 	unsigned char buffer[N * 2];
 };
 
-void lzss_free(lzss_t *l)
+typedef struct lzss lzss_t;
+
+static void lzss_free(lzss_t *l)
 {
 	memset(l, 0, sizeof(*l));
 	free(l);
 }
 
-lzss_t *lzss_new(io_t *in, io_t *out)
+static lzss_t *lzss_new(io_t *in, io_t *out)
 {
 	lzss_t *l = io_calloc_or_fail(sizeof(*l));
 	l->in = in;
@@ -44,10 +49,12 @@ lzss_t *lzss_new(io_t *in, io_t *out)
 	return l;
 }
 
+/**@brief put a single bit into the bit buffer for output*/
 static int putbit(lzss_t *l, unsigned put_one)
 {
 	if(put_one)
 		l->output_bit_buffer |= l->output_bit_mask;
+
 	if ((l->output_bit_mask >>= 1) == 0) {
 		if (io_putc(l->output_bit_buffer, l->out) == EOF)
 			return -1;
@@ -59,10 +66,9 @@ static int putbit(lzss_t *l, unsigned put_one)
 
 static int flush_output_bit_buffer(lzss_t *l)
 {
-	if (l->output_bit_mask != 128) {
+	if (l->output_bit_mask != 128)
 		if (io_putc(l->output_bit_buffer, l->out) == EOF)
 			return -1;
-	}
 	return 0;
 }
 
@@ -94,12 +100,12 @@ static int output2(lzss_t *l, unsigned x, unsigned y)
 	return 0;
 }
 
-int lzss_encode(lzss_t *l)
+int _lzss_encode(lzss_t *l)
 {
 	int i, j, f1, x, y, r, s, bufferend, c;
 
-	for (i = 0; i < N - F; i++)
-		l->buffer[i] = ' ';
+	memset(l->buffer, ' ', N - F);
+
 	for (i = N - F; i < N * 2; i++) {
 		if ((c = io_getc(l->in)) == EOF)
 			break;
@@ -108,6 +114,7 @@ int lzss_encode(lzss_t *l)
 	bufferend = i;
 	r = N - F;
 	s = 0;
+	/**@todo refactor and simplify */
 	while (r < bufferend) {
 		f1 = (F <= bufferend - r) ? F : bufferend - r;
 		x = 0;
@@ -123,6 +130,7 @@ int lzss_encode(lzss_t *l)
 				if (j > y) {
 					x = i;
 					y = j;
+					// break; /* <- speed vs compression size */
 				}
 			}
 		if (y <= P) {
@@ -152,7 +160,15 @@ int lzss_encode(lzss_t *l)
 	return 0;
 }
 
-static int getbit(lzss_t *l, unsigned n)
+int lzss_encode(io_t *in, io_t *out)
+{
+	lzss_t *l = lzss_new(in, out);
+	int r = _lzss_encode(l);
+	lzss_free(l);
+	return r;
+}
+
+static int getbits(lzss_t *l, unsigned n)
 { /* get n bits */
 	unsigned i, x;
 
@@ -173,24 +189,24 @@ static int getbit(lzss_t *l, unsigned n)
 	return x;
 }
 
-int lzss_decode(lzss_t *l)
-{
+int _lzss_decode(lzss_t *l)
+{ /**@note decoding is very fast, this does not need to be improved upon */
 	int i, j, k, r, c;
 
 	memset(l->buffer, ' ', N - F);
 	r = N - F;
-	while ((c = getbit(l, 1)) != EOF) {
+	while ((c = getbits(l, 1)) != EOF) {
 		if (c) {
-			if ((c = getbit(l, 8)) == EOF)
+			if ((c = getbits(l, 8)) == EOF)
 				break;
 			if(io_putc(c, l->out) < 0)
 				return -1;
 			l->buffer[r++] = c;
 			r &= (N - 1);
 		} else {
-			if ((i = getbit(l, EI)) == EOF)
+			if ((i = getbits(l, EI)) == EOF)
 				break;
-			if ((j = getbit(l, EJ)) == EOF)
+			if ((j = getbits(l, EJ)) == EOF)
 				break;
 			for (k = 0; k <= j + 1; k++) {
 				c = l->buffer[(i + k) & (N - 1)];
@@ -204,7 +220,15 @@ int lzss_decode(lzss_t *l)
 	return 0;
 }
 
-int main_lzss(int argc, char *argv[])
+int lzss_decode(io_t *in, io_t *out)
+{
+	lzss_t *l = lzss_new(in, out);
+	int r = _lzss_decode(l);
+	lzss_free(l);
+	return r;
+}
+
+int main_lzss(int argc, char **argv)
 {
 	int encode;
 	char *s;
@@ -214,7 +238,7 @@ int main_lzss(int argc, char *argv[])
 	io_t *in, *out;
 
 	if (argc != 4) {
-		fprintf(stderr, "Usage: lzss e/d infile outfile\n\te = encode\td = decode\n");
+		fprintf(stderr, "usage: lzss e/d infile outfile\n\te = encode\td = decode\n");
 		return 1;
 	}
 	s = argv[1];
@@ -224,24 +248,19 @@ int main_lzss(int argc, char *argv[])
 		fprintf(stderr, "? %s\n", s);
 		return 1;
 	}
-	if ((infile = fopen(argv[2], "rb")) == NULL) {
-		fprintf(stderr, "? %s\n", argv[2]);
-		return 1;
-	}
-	if ((outfile = fopen(argv[3], "wb")) == NULL) {
-		fprintf(stderr, "? %s\n", argv[3]);
-		return 1;
-	}
+
+	infile  = io_fopen_or_fail(argv[2], "rb");
+	outfile = io_fopen_or_fail(argv[3], "wb");
+
 	in  = io_file(infile);
 	out = io_file(outfile);
 	
 	l = lzss_new(in, out);
 
 	if (encode)
-		lzss_encode(l);
+		_lzss_encode(l);
 	else
-		lzss_decode(l);
-	lzss_free(l);
+		_lzss_decode(l);
 
 	read = io_get_chars_read(in);
 	written = io_get_chars_written(out);
@@ -250,9 +269,9 @@ int main_lzss(int argc, char *argv[])
 		encode ? "compressing" : "decompressing",
 		read, 
 		written, read ? (double)(written * 100ull) / read: 0.0);
-
-	io_free(in);
-	io_free(out);
+	io_free(l->in);
+	io_free(l->out);
+	lzss_free(l);
 	return 0;
 }
 
@@ -262,3 +281,4 @@ int main(int argc, char *argv[])
 	return main_lzss(argc, argv);
 }
 #endif
+

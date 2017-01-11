@@ -11,11 +11,13 @@
 typedef int (*func_putc)(int c, io_t *);
 typedef int (*func_getc)(io_t *);
 typedef int (*func_flush)(io_t *);
+typedef void (*func_rewind)(io_t *);
 
 struct io {
 	func_putc put;
 	func_getc get;
 	func_flush flush;
+	func_rewind reset;
 
 	FILE *file;
 
@@ -43,6 +45,18 @@ static void fail_if(int test, const char *msg){
                       fputs(msg, stderr);
               exit(EXIT_FAILURE);
        }
+}
+
+FILE *io_fopen_or_fail(const char *file, const char *mode)
+{
+	FILE *f;
+	assert(file && mode);
+	errno = 0;
+	if(!(f = fopen(file, mode))) {
+		fprintf(stderr, "Could not open file %s (mode %s): %s\n", file, mode, io_strerror());
+		exit(EXIT_FAILURE);
+	}
+	return f;
 }
 
 void *io_calloc_or_fail(size_t n) 
@@ -90,6 +104,12 @@ static int file_flush(io_t *o)
 	return fflush(o->file);
 }
 
+static void file_rewind(io_t *o)
+{
+	assert(o && o->file);
+	rewind(o->file);
+}
+
 io_t *io_file(FILE *f)
 {
 	assert(f);
@@ -97,6 +117,7 @@ io_t *io_file(FILE *f)
 	o->put = file_putc;
 	o->get = file_getc;
 	o->flush = file_flush;
+	o->reset = file_rewind;
 	o->file = f;
 	return o;
 }
@@ -164,6 +185,12 @@ size_t io_write(uint8_t *buf, size_t size, io_t *o)
 		if(buf[i] != put(buf[i], o))
 			return i;
 	return i;
+}
+
+void io_rewind(io_t *o)
+{
+	assert(o && o->reset);
+	o->reset(o);
 }
 
 const char *io_strerror(void)
@@ -264,6 +291,13 @@ static int string_flush(io_t *o)
 	return 0;
 }
 
+static void string_rewind(io_t *o)
+{
+	assert(o);
+	o->rindex = 0;
+	o->windex = 0;
+}
+
 static io_t *io_string_allocator(unsigned ops, size_t size, int allocate)
 {
 	io_t *o = new_io();
@@ -277,6 +311,7 @@ static io_t *io_string_allocator(unsigned ops, size_t size, int allocate)
 	o->put = string_putc;
 	o->get = string_getc;
 	o->flush = string_flush;
+	o->reset = string_rewind;
 	return o;
 }
 
