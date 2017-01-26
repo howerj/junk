@@ -260,6 +260,17 @@ int prolog_print(node *p, unsigned depth, FILE *out)
 
 /* -- Execution ------------------------------------------------------------ */
 
+enum type { ATOM, CONS, VAR, GOAL, CLAUSE };
+typedef struct {
+	enum type type;
+	void *p;
+} prolog_t;
+
+int print(prolog_t *p)
+{
+	return -1;
+}
+
 /* unify */
 /* solve */
 
@@ -310,8 +321,12 @@ int prolog_run(prolog_obj_t *o)
         return 0;
 }
 
+
+
 int main_prolog(int argc, char **argv)  /*options: ./prolog (file)* */
-{       int rval = 0, c;                /*return value, temp char*/
+{       
+#if 0	
+	int rval = 0, c;                /*return value, temp char*/
         FILE *in = NULL;                /*current input file*/
         jmp_buf go;                     /*exception handler state*/
         prolog_obj_t *o = NULL;         /*our prolog environment*/
@@ -330,4 +345,6 @@ int main_prolog(int argc, char **argv)  /*options: ./prolog (file)* */
 END:    if(in && (in != stdin)) fclose(in), in = NULL;
         free(o), o = NULL;
         return rval;
+#endif
+	return 0;
 }

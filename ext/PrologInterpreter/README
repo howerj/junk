@@ -1,0 +1,4 @@
+To build : make
+To run: ./prolog
+
+From <https://github.com/mikekhalil/PrologInterpreter>
