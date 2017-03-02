@@ -482,7 +482,16 @@ node *parse_ebnf(parse_state *ps, FILE *in, int debug_on)
 	return grammar(ps, 0);
 }
 
-/****************************** code generation *******************************/
+/****************************** C code generation *****************************/
+/**@todo take the EBNF tree and generate C code that parse it according to the
+ * translation rules in Niklaus Wirths "Compiler Construction" book. */
+
+
+
+/****************************** C code generation *****************************/
+
+
+/*************************** VM code generation *******************************/
 
 enum { NOP, PUSH, POP, IF, ACCEPT, EXPECT, CALL, RETURN, UNTOKEN, ABORT, JZ };
 
