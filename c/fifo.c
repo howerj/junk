@@ -11,7 +11,7 @@ typedef struct {
 	size_t head;
 	size_t tail;
 	size_t size;
-	uint8_t *buffer;
+	fifo_data_t *buffer;
 } fifo_t;
 
 fifo_t *fifo_new(size_t size);
