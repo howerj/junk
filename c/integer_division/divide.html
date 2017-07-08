@@ -1,0 +1,1224 @@
+
+
+
+
+
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+
+<HTML LANG="en">
+ <HEAD>
+  <TITLE>Jones on reciprocal multiplication</TITLE>
+  <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=utf-8">
+  <META name="viewport" content="width=device-width, initial-scale=1">
+  <META name="Author" content="Douglas W. Jones">
+  <META name="Language" content="English">
+  <META name="editor" content="/usr/bin/vi">
+  
+   <META name="Description"
+         content="A tutorial on using reciprocal multiplication to do division">
+  
+  
+  
+  <STYLE TYPE="text/css">
+   BODY { margin-left: 3%; margin-right: 3%; }
+   H2.SQUAT { margin-top: 0.4em; margin-bottom: 0.25em; }
+   H3.SQUAT { margin-top: 0.3em; margin-bottom: 0.2em; }
+   H4.SQUAT { margin-top: 0.2em; margin-bottom: 0.15em; }
+   H5.SQUAT { margin-top: 0.17em; margin-bottom: 0.15em; }
+   * { line-height: 1.1 }
+   P.SQUAT { margin-top: 0.25em; margin-bottom: 0.15em; }
+   UL.SQUAT { margin-top: 0.25em; margin-bottom: 0.15em; }
+   EM.O { font-style: normal; text-decoration: overline; }
+   EM.U { font-style: normal; text-decoration: underline; }
+   EM.S { font-style: normal; text-decoration: line-through; }
+   A { text-decoration: none; }
+   A.I { font-style: italic; text-decoration: none; }
+   SUP { vertical-align: 0; position: relative; bottom: 1ex; }
+   SUB { vertical-align: 0; position: relative; top: 0.8ex; }
+   TABLE.BOXY { border: 0; padding: 0; border-spacing: 0;
+                border-collapse: collapse; }
+   TD.BOX { border: solid; border-width: thin; border-color: DimGray;
+	      text-align: center; }
+   TD.BOXTT { border: solid; border-width: thin; border-color: DimGray;
+	      font-family: monospace; text-align: center; }
+   TD.TT { font-family: monospace; text-align: left; }
+   TD.TTSPACE { font-family: monospace; text-align: left; color: white }
+   TD.SHADE { background: Silver; text-align: center; }
+   CAPTION { padding-top: 6px; }
+   DIV.HEADBOX { border: groove; border-width: 2px; background: #F0F0E0; padding-top: 1%; padding-bottom: 1%; padding-left: 5px; }
+   DIV.HEADBOX P { margin-top: 0.8em; margin-bottom: 0.8em; }
+   DIV.HEADBOX H1 { margin-top: 0.2em; margin-bottom: 0.4em; }
+   DIV.HEADBOX H2 { margin-top: 0.2em; margin-bottom: 0.4em; }
+   DIV.INDENT { border: none; padding-left: 1em }
+   DIV.INVISIBLE { font-size: 3px; letter-spacing: -5px; color: white; background: white; }
+   DIV.INVISIBLE A:link { color: white; }
+   DIV.INVISIBLE A:visited { color: white; }
+   DIV.INVISIBLE A:active { color: white; }
+   DIV.invisible A:active { color: white; background: white; }
+  </STYLE>
+ </HEAD>
+ <BODY BGCOLOR="#FFFFFF" TEXT="#000000" link="#0000CC" vlink="#880088" alink="#880088">
+  <DIV CLASS=HEADBOX>
+   
+   <TABLE BORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD>&nbsp;&nbsp;<TD>
+    
+     <H1>Reciprocal Multiplication, a tutorial</H1>
+    
+    
+    <P>
+    
+     Part of <A HREF="http://www.cs.uiowa.edu/~jones/bcd/">
+      
+      the Arithmetic Tutorial Collection
+      
+     </A>
+     <BR>
+     
+    
+    
+     by
+     <A HREF="http://www.cs.uiowa.edu/~jones/">Douglas W. Jones</A>
+     
+     <BR>
+    
+    
+    <A HREF="http://www.uiowa.edu/">
+     T<SMALL>HE</SMALL> U<SMALL>NIVERSITY</SMALL>
+    <SMALL>OF</SMALL> I<SMALL>OWA</SMALL></A>
+    <A HREF="http://www.cs.uiowa.edu/">Department&nbsp;of&nbsp;Computer&nbsp;Science</A>
+    
+    
+    
+     <P>
+     <SMALL>
+      Copyright &#169;
+      1999, Douglas. W. Jones, with major revisions made in 2002.
+      This work may be transmitted or stored in electronic form on any
+      computer attached to the Internet or World Wide Web so long as this
+      notice is included in the copy.  Individuals may make single copies
+      for their own use.  All other rights are reserved.
+     </SMALL>
+    
+   </TABLE>
+    
+  </DIV>
+ 
+
+
+
+<H2>Index</H2>
+
+<UL>
+<LI> <A HREF="divide.html#intro">Introduction</A>
+<LI> <A HREF="divide.html#fixed">Fixed Point Fractions and Arithmetic</A>
+<LI> <A HREF="divide.html#times">Basic Reciprocal Multiplication</A>
+<LI> <A HREF="divide.html#correcting">Correcting the Errors</A>
+<LI> <A HREF="divide.html#nomul">Eliminating use of Multiply Hardware</A>
+<LI> <A HREF="divide.html#signed">Signed Dividends</A>
+<LI> <A HREF="divide.html#testing">Exhaustive Testing</A>
+</UL>
+
+<HR>
+
+<H2> <A NAME=intro> Introduction </A> </H2>
+
+<P>
+There are many reasons to omit integer division from the instruction set of
+a computer.  In the early days of computing, the cost of this hardware was
+a dominant factor, and it still dominates in the world of programmable
+microcontrollers such as the PIC family of chips made by Microchip.  Today,
+the difficulties cleanly integrating divide hardware into pipelined systems
+has led to the omission of integer divide hardware from a surprising number
+of high performance microprocessors and DSP chips.
+<P>
+Such an omission can only be justified if division can be done efficiently
+in software, and fortunately, this is the case!  Most integer division
+operations found in real programs involves division by a constant, and it
+turns out that division by a constant can always be replaced by multiplication
+by the reciprocal of that constant.  Even when divide hardware is available,
+it is quite common to find that divide instructions take more than twice
+as long as multiply instructions, and as a result, reciprocal multiplication
+is frequently the preferred way to handle integer division!
+<P>
+Elimination of multiply instructions is itself desirable.  For example,
+according to the Pentium instruction timings available from
+<A HREF="http://www.quantasm.com/opcode_i.html">Quantasm Corporation</A>,
+The base time for a 32-bit integer add or subtract on that machine
+(discounting operand fetch and other overhead) is 1 clock cycle, and
+both can sometimes be paired with other instructions for concurrent execution.
+In contrast, a 32-bit multiply takes 10 cycles and a divide takes 41 cycles,
+and neither can be paired.  Clearly, these instructions should be avoided
+wherever possible.
+<P>
+The goal of the remainder of this presentation is to investigate how
+division by constants, particularly by 10, can be efficiently coded
+for unsigned integers on a machine without using multiply or divide
+instructions; on the way, we will briefly visit efficient multiplication
+by constants.  Most of this presentation will use C syntax, avoiding
+the details of actual machine instructions, and after each technique
+is explored, it will be applied to other divisors.
+<P>
+Our emphasis is on methods that produce exact results for integer division,
+but these methods are closely related and in many cases based on methods that
+produce approximate results for division of fixed-point fractions.  These
+latter methods focus on minimizing the expected error, while our focus is
+on methods that give a remainder that lies between zero and one less than the
+divisor.
+<P>
+
+<HR>
+
+<H2> <A NAME=fixed> Fixed Point Fractions </A> </H2>
+
+<H3> Fixed Point Number Representations </H3>
+<P>
+To divide by 10, we will multiply by 1/10, but while this is easily said,
+we need to talk about the representation of 1/10 on a computer before we
+go into details.  The fraction 1/10 can be represented as 0.1<SUB>10</SUB>;
+on converting this to binary, we get
+0.00011<EM CLASS=O>0011</EM><SUB>2</SUB>,
+which is an infinite repeating fraction, not unlike the situation with 1/3
+in decimal, which is
+0.333<EM CLASS=O>3</EM><SUB>10</SUB>;
+the repeat string in such fractions is traditionally marked by an
+overbar; here, this is rendered <EM CLASS=O>like this</EM>.
+The following table shows
+the binary reciprocals of some common small integers.  
+<P ALIGN=center>
+<TABLE BORDER=1 CELLSPACING=0 ALIGN=center>
+<TR><TH>  n <TH> 1/n base 2                 </TR>
+<TR><TD>  2 <TD> .1                         </TR>
+<TR><TD>  3 <TD> .0101<EM CLASS=O>01</EM>             </TR>
+<TR><TD>  4 <TD> .01                        </TR>
+<TR><TD>  5 <TD> .00110011<EM CLASS=O>0011</EM>       </TR>
+<TR><TD>  6 <TD> .00101<EM CLASS=O>01</EM>            </TR>
+<TR><TD>  7 <TD> .001001<EM CLASS=O>001</EM>          </TR>
+<TR><TD>  8 <TD> .001                      </TR>
+<TR><TD>  9 <TD> .000111<EM CLASS=O>000111</EM>       </TR>
+<TR><TD> 10 <TD> .000110011<EM CLASS=O>0011</EM>      </TR>
+<TR><TD> 11 <TD> .00010111<EM CLASS=O>0100010111</EM> </TR>
+<TR><TD> 12 <TD> .000101<EM CLASS=O>01</EM>           </TR>
+<TR><TD> 13 <TD> .0001001<EM CLASS=O>110110001001</EM> </TR>
+<TR><TD> 14 <TD> .0001001<EM CLASS=O>001</EM>         </TR>
+<TR><TD> 15 <TD> .00010001<EM CLASS=O>0001</EM>       </TR>
+</TABLE>
+<P>
+Many programmers assume, on seeing a fraction like 0.1<SUB>10</SUB>, that
+this must be represented as a floating point number, but this is not so!
+Fixed point representations, in which the point is implicitly placed between
+any bits of the binary representation of a number, have been used since
+the dawn of the computer age.  When fixed-point numbers are used, all
+arithmetic operations use integer arithmetic, and this leads to a considerable
+performance advantage.
+<P>
+For our purpose, the fraction 0.000110011...<SUB>2</SUB> is represented
+as follows on a 16 bit machine:
+<PRE WIDTH = 70>
+    .0 0 0 1 1 0 0 1 1 0 0 1 1 0 0 1 
+    |_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|
+    |       |       |       |       |
+</PRE>
+<P>
+If we round instead of truncating, we get:
+<PRE WIDTH = 70>
+    .0 0 0 1 1 0 0 1 1 0 0 1 1 0 1 0 
+    |_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|
+    |       |       |       |       |
+</PRE>
+<P>
+If we ignore the question of what to do with the point, these can be
+expressed in a typical C environment as:
+<PRE>
+	unsigned int tenth_trunc = 0x1999;
+	unsigned int tenth_round = 0x199A;
+</PRE>
+<P>
+The extension of these representations to a 32 bit environment should be
+obvious.  For most of this discussion, we will confine ourselves to a 16
+bit environment in order to slightly simplify the presentation.
+<P>
+Now, what about the point?  When using fixed-point arithmetic, the
+position of the point is implicit and is never explicitly represented
+anywhere outside the comments in a program!  (Don Gillies quoted
+John Von Neumann once, saying that a competent programmer never needs
+floating point hardware because he should always be able to keep the
+point in his head.)  The following brief discussion of fixed-point
+multiplication illustrates this.
+
+<H3> General Rules for Fixed Point Arithmetic </H3>
+<P>
+The general rules for fixed-point binary arithmetic are the same rules
+students learn in elementary school for doing arithmetic on decimal
+numbers with a fractional part.  That is, when adding, first align the
+points and then add, and when multiplying, the number of places right
+of the point in the product is the sum of the numbers of places right
+of the point in the multiplicands.  This is illustrated in the following
+examples.
+<P>
+The examples that follow are based on fixed-point numbers A and B,
+defined as follows:
+<PRE>
+	unsigned int A;  /* 4 bits right of the point */
+	unsigned int B;  /* 8 bits right of the point */
+</PRE>
+<P>
+Given these definitions, if A has the value 0x15, this is interpreted as
+1 and 5/16, while if B has the value 0x15, this is is interpreted
+as 21/256.  The sum A+B may be computed in two different ways, depending
+on the precision desired:
+<PRE>
+	unsigned int S;
+	S = B + (A &lt;&lt; 4);        /* 8 bits right of the point */
+	S = ((B + 8) &gt;&gt; 4) + A); /* 4 bits right of the point */
+</PRE>
+<P>
+In the second case, when discarding fractional bits B prior to the sum,
+we first added 1 in the most significant of the bits that were discarded
+in order to round the result instead of truncating.  Multiplication
+is done as follows:
+<PRE>
+	unsigned int P; /* 12 places right of the point */
+	P = A * B; /* places after point: 12 = 4 + 8 */
+</PRE>
+<P>
+Here, we have simply taken the integer product of the multiplicands and
+then, in the commentary, noted that the number of places to the  right of
+the point in the product is the sum of the number of places to the right
+of the points in the multiplicands.
+<P>
+
+<HR>
+
+<H2> <A NAME=times> Basic Reciprocal Multiplication </A> </H2>
+
+<P>
+When we multiply a 16 bit integer by a 16 bit fixed-point
+fraction approximating 0.1, the result is a 32 bit quantity with
+16 places left of the point and 16 places right of the point.  If what
+we want is the integer part of the quotient, with no places to the right
+of the point, we must therefore shift the product 16 places right.
+<PRE>
+	unsigned int A;
+	unsigned int tenth_trunc = 0x1999; /* 16 bits right of the point */
+	unsigned int Q; /* the quotient */
+
+	Q = (A * tenth_trunc) &gt;&gt; 16;
+	/* either Q = A/10 or Q+1 = A/10 for all A &lt; 109,230 */
+</PRE>
+<P>
+In those cases where the intended divisor has a reciprocal that can be
+exactly represented as a fixed-point fraction, the result of reciprocal
+multiplication will be exact.  Unfortunately, our multiplier was not
+exactly represented!  The value of P computed by multiplying by an
+approximation of .1 is only approximately what we want!  The quotient
+may be correct, or it may be one less than the actual value.
+The same is true if a rounded approximation of 0.1 is used unless we
+use a bit of extra precision!
+<P>
+It is worth noting that there are two common ways of providing multiply
+support on an n-bit machine:  One uses a single multiply instruction that
+takes 2 n-bit operands and delivers a product of 2n bits in a pair of
+registers.  The other uses a pair of multiply instructions, one delivering
+only the most significant n bits of the product and the other delivering only
+the least significant n bits of the product.  In either case, the computation
+outlined here uses a single multiply instruction and does not require a shift
+instruction.  In the first case, we simply use the register holding the
+high half of the product and ignore the value in the other register.  In
+the second case, we use the multiply instruction that delivers only the
+high half of the product.
+<P>
+
+<HR>
+
+<H2> <A NAME=correcting> Correcting the Errors </A> </H2>
+
+<H3> Using Extra Precision </H3>
+<P>
+One way to correct the errors introduced in reciprocal multiplication is
+simply to use extra precision.  Given that our goal is to divide a 16
+bit number by 10, it turns out that 4 bits of extra precision, with rounding
+in the least significant bit, will suffice, as illustrated here:
+<PRE>
+	unsigned int A;
+	unsigned int tenth_round = 0x1999A; /* 20 bits right of the point */
+	unsigned int Q; /* the quotient */
+
+	Q = (A * tenth_round) &gt;&gt; 20;
+	/* Q = A/10 for all A &lt; 81,920 */
+</PRE>
+<P>
+The problem with this approach is that the rounded approximation given
+here requires 20 bits and the product requires 36 bits prior to shifting.
+On a 16 bit machine, products over 32 bits cannot be computed directly
+using the hardware typically available, and we must use a double-word to
+hold the approximate multiplier.  Nonetheless, as we will see, this
+approach is still quite useful!
+<P>
+First, quick inspection of our approximation of one tenth reveals that
+it actually has only 16 significant bits!
+0.1999A<SUB>16</SUB> or
+0.000<EM CLASS=U>1100110011001101</EM><SUB>2</SUB>
+is equal to 0.CCCD<SUB>16</SUB> or
+0.<EM CLASS=U>1100110011001101</EM><SUB>2</SUB>
+divided by 8 or shifted three places right.  The latter is a fixed
+point binary approximation of 0.8<SUB>10</SUB> rounded to 16 bits,
+so we can divide by 10 using the following code using 16x16=32 multiplier:
+<PRE>
+        unsigned int A;
+        unsigned int scaled_reciprocal = 0xCCCD;
+		/* 0.8, 16 bits right of the point  */
+        unsigned int shift_count = 19;
+        unsigned int Q; /* the quotient */
+
+        Q = (A * scaled_reciprocal) &gt;&gt; shift_count;
+        /* Q = (A*0.8)/8 = A/10 for all A &lt; 81,920 */
+</PRE>
+<P>
+For a general algorithm for computing the approximation to use for
+an arbitrary divisor, see
+Section 18.7 of Anger Fog's <I>How to optimize for the Pentium family of
+microprocessors</I>, available in PDF format from
+<A HREF="http://www.agner.org/assem/pentopt.pdf">http://www.agner.org/assem/pentopt.pdf</A>,
+which is indexed on the web at
+<A HREF="http://www.agner.org/assem/#optimize">http://www.agner.org/assem/#optimize</A>.
+This contains a general algorithm for computing the approximation to use for
+an arbitrary divisor.
+The following table gives the scaled
+reciprocals and shift counts for several common divisors:
+<P ALIGN=center>
+<TABLE BORDER=1 CELLSPACING=0 ALIGN=center>
+<TR><TH> n <TH>   scaled reciprocal   <TH> shift count </TR>
+<TR><TD> 3 <TD> <TT>1010101010101011 AAAB</TT> <TD>  17         </TR>
+<TR><TD> 5 <TD> <TT>1100110011001101 CCCD</TT> <TD>  18         </TR>
+<TR><TD> 6 <TD> <TT>1010101010101011 AAAB</TT> <TD>  18         </TR>
+<TR><TD> 7 <TD> <TT>10010010010010011    </TT> <TD>  19         </TR>
+<TR><TD> 9 <TD> <TT>1110001110001111 E38F</TT> <TD>  19         </TR>
+<TR><TD>10 <TD> <TT>1100110011001101 CCCD</TT> <TD>  19         </TR>
+<TR><TD>11 <TD> <TT>1011101000101111 BA2F</TT> <TD>  19         </TR>
+<TR><TD>12 <TD> <TT>1010101010101011 AAAB</TT> <TD>  19         </TR>
+<TR><TD>13 <TD> <TT>1001110110001010 9D8A</TT> <TD>  19         </TR>
+<TR><TD>14 <TD> <TT>10010010010010011    </TT> <TD>  20         </TR>
+<TR><TD>15 <TD> <TT>1000100010001001 8889</TT> <TD>  19         </TR>
+</TABLE>
+<P>
+All of these reciprocal approximations have been verified to give the exact
+quotient for all possible 16 bit dividends.  All but two of these use a 16
+bit approximation of the reciprocal and so can be substituted into the code
+given above on a machine that gives a 32-bit product when multiplying two
+16-bit operands.
+<P>
+Unfortunately, it is not always possible to use a 16-bit approximation of
+the reciprocal to get the correct quotient for a 16 bit dividend.  In the
+case of 1/7 and 1/14, for example, it takes a 17-bit approximation,
+giving a 33-bit product prior to shifting.  To handle this case in a machine
+that only delivers a 32 bit product, we must first compute the product using
+the least significant 16 bits of the scaled reciprocal and then use
+shift-and add methods to add in the final partial product.
+<PRE>
+        unsigned int A;
+        unsigned int Q; /* the quotient */
+
+        Q = (((A * 0x2493) &gt;&gt; 16) + A) &gt;&gt; 3
+	
+        /* Q = A/7 for all A &lt; 104,859 */
+</PRE>
+<P>
+The general rule for finding the scaled reciprocal that gives the exact
+quotient when dividing by a constant is as follows:
+<OL>
+<LI> Given d, the constant divisor, compute the exact reciprocal:
+    <BR>r = 1/d
+<LI> 1/d will have z leading zeros between the point and its leftmost one:
+    <BR>assert 0.5 <EM CLASS=U>&lt;</EM> (1/d &times; 2<SUP>z</SUP>) &lt; 1
+<LI> For an n-bit dividend, take the next n+1 bits and add 1 to round:
+    <BR>r = int(1/d &times; 2<SUP>z+n+1</SUP>)+ 1
+<LI> The shift count is z+n+1
+    <BR>int(a/d) = int( [a &times; (int(1/d &times; 2<SUP>z+n+1</SUP>)+ 1)]
+                        / 2<SUP>z+n+1</SUP>)
+</OL>
+These rules always give an n+1 bit approximate reciprocal, but if the result
+of the rounding step is even, we can use only the most significant n bits
+of the approximate reciprocal and reduce the shift count by one.  For 16-bit
+operands, this works for 3, 5, 6 and 11, but not for 7 and 9.  In the case
+of 9, however, rounding up by two instead of by one worked.  This does not
+work for 7!
+<P>
+The following tables of successively more precise rounded approximations
+illustrates how adding precision to the approximation extends the range
+of dividends for which it gives the exact integer part of the quotient:
+<P ALIGN=center>
+<TABLE BORDER=1 CELLSPACING=0 ALIGN=center>
+<TR><TH>   approximation of A/3   <TH> exact so long as    </TR>
+<TR><TD> A&times;0.011            <TD> A &lt; 8            </TR>
+<TR><TD> A&times;0.01011          <TD> A &lt; 32           </TR>
+<TR><TD> A&times;0.0101011        <TD> A &lt; 128          </TR>
+<TR><TD> A&times;0.010101011      <TD> A &lt; 512          </TR>
+<TR><TD> A&times;0.01010101011    <TD> A &lt; 2,048        </TR>
+<TR><TD> A&times;0.0101010101011  <TD> A &lt; 8,192        </TR>
+</TABLE>
+<P ALIGN=center>
+<TABLE BORDER=1 CELLSPACING=0 ALIGN=center>
+<TR><TH>   approximation of A/5   <TH> exact so long as    </TR>
+<TR><TD> A&times;0.00111          <TD> A &lt; 14           </TR>
+<TR><TD> A&times;0.001101         <TD> A &lt; 64           </TR>
+<TR><TD> A&times;0.001100111      <TD> A &lt; 174          </TR>
+<TR><TD> A&times;0.0011001101     <TD> A &lt; 1,024        </TR>
+<TR><TD> A&times;0.0011001100111  <TD> A &lt; 2,734        </TR>
+<TR><TD> A&times;0.00110011001101 <TD> A &lt; 16,384       </TR>
+</TABLE>
+<P ALIGN=center>
+<TABLE BORDER=1 CELLSPACING=0 ALIGN=center>
+<TR><TH>   approximation of A/7   <TH> exact so long as    </TR>
+<TR><TD> A&times;0.0010011        <TD> A &lt; 27           </TR>
+<TR><TD> A&times;0.00100101       <TD> A &lt; 90           </TR>
+<TR><TD> A&times;0.0010010011     <TD> A &lt; 209          </TR>
+<TR><TD> A&times;0.00100100101    <TD> A &lt; 685          </TR>
+<TR><TD> A&times;0.0010010010011  <TD> A &lt; 1,644        </TR>
+<TR><TD> A&times;0.00100100100101 <TD> A &lt; 5,466        </TR>
+</TABLE>
+<P>
+It would be nice if all optimal multipliers worked precisely up to some
+power of two, but they do not, as is clearly demonstrated in the table
+for 1/7.  Nonetheless, the relationship between the number of significant
+places in the multiplier and the precision of the result is clear.  If
+there are n places, inclusive, between the most significant one bit
+and the least significant position that one could have been added in
+order to round the exact reciprocal to produce this approximation, then
+multiplying by this approximation will deliver the correct quotient
+for all numbers up to 2<SUP>n-1</SUP> and sometimes up to but not
+including 2<SUP>n</SUP>.
+<P>
+The following table gives the optimal reciprocals for division of 32-bit
+unsigned numbers by small integers.  Although this table is organized
+in the same way as the table for 16-bit numbers, high-level-language
+programmers on 32-bit machines will have difficulty using it because most
+programming languages on 32-bit machines provide no way to access the high
+32 bits of the 64-bit product of two 32-bit unsigned numbers.
+<P ALIGN=center>
+<TABLE BORDER=1 CELLSPACING=0 ALIGN=center>
+<TR><TH> n <TH>   scaled reciprocal                       <TH> shift count </TR>
+<TR><TD> 3 <TD> <TT>10101010101010101010101010101011 AAAAAAAB</TT>
+							  <TD>  33        </TR>
+<TR><TD> 5 <TD> <TT>11001100110011001100110011001101 CCCCCCCD</TT>
+							  <TD>  34        </TR>
+<TR><TD> 6 <TD> <TT>10101010101010101010101010101011 AAAAAAAB</TT>
+							  <TD>  34        </TR>
+<TR><TD> 7 <TD> <TT>100100100100100100100100100100101        </TT>
+							  <TD>  35        </TR>
+<TR><TD> 9 <TD> <TT>11100011100011100011100011100100 E38E38E4</TT>
+							  <TD>  35        </TR>
+<TR><TD>10 <TD> <TT>11001100110011001100110011001101 CCCCCCCD</TT>
+							  <TD>  35        </TR>
+<TR><TD>11 <TD> <TT>10111010001011101000101110100011 BA2E8BA3</TT>
+							  <TD>  35        </TR>
+<TR><TD>12 <TD> <TT>10101010101010101010101010101011 AAAAAAAB</TT>
+							  <TD>  35        </TR>
+</TABLE>
+
+<H3> Fixing the Approximation </H3>
+<P>
+A second approach to fixing the approximate result is to compute the
+remainder after multiplication and then correct the product if the
+remainder is too large.  This brute force approach is justified in
+some settings, primarily those where the remainder is needed anyway
+and where there is no hardware multiply instruction.
+<PRE>
+	unsigned int A;
+	unsigned int tenth_trunc = 0x1999;
+	unsigned int Q; /* the quotient */
+	unsigned int R; /* the remainder */
+
+	Q = (A * tenth_trunc) &gt;&gt; 16;
+	/* either Q = A/10 or Q+1 = A/10 for all A &lt; 109,230 */
+
+	R = A - 10*Q;
+	if (R &gt;= 10) {
+		Q = Q + 1;
+		R = R - 10; /* optional */
+	}
+	/* Q = A/10 for all A &lt; 109,230 */
+</PRE>
+<P>
+This may seem expensive, involving as it does es a second multiply
+instruction, where the typical hardware divide instruction is only twice
+as time-consuming as the typical hardware multiply.  In fact, as we will
+see, some modern RISC processors can multiply by 10 with a single add-and-shift
+instruction, and many can do it in 2 simple instructions, so this cost
+may not be as great as it seems.
+<P>
+This approach always works!  If we use the n bits immediately to the right of
+the point in the reciprocal as the multiplier, the result will be either the
+exact quotient or one less than the exact quotient.
+
+<HR>
+
+<H2> <A NAME=nomul> Eliminating use of Multiply Hardware </A> </H2>
+
+<H3> Architectural Features </H3>
+<P>
+Several modern RISC processors have register-to-register add instructions
+equivalent to the following C statements:
+<PRE>
+	DST = ((SRC1 &lt;&lt; S1) + SRC2) &lt;&lt; S2;
+	DST = ((SRC1 &gt;&gt; S1) + SRC2) &gt;&gt; S2;
+</PRE>
+<P>
+Here, SRC1, SRC2 and DST are registers, and S1 and S2 are constant shift-count
+fields that are part of the instruction; typically, S1 and S2 are severely
+constrained and only permit small shifts or are limited to powers of 2.
+There are other RISC machines that have less general add-and-shift
+instructions, for example, instructions capable of performing one or the
+other of the following, but not both:
+<PRE>
+        DST = (SRC1 &lt;&lt; S1) + SRC2;
+        DST = (SRC1 + SRC2) &lt;&lt; S2;
+</PRE>
+<P>
+A single shift-and-add instruction of the most general form illustrated
+above can compute any product involving a constant multiplier with only
+2 one bits set, for example:
+<PRE>
+	DST = ((SRC     ) + SRC)     ; /* times 2 */
+	DST = ((SRC &lt;&lt; 1) + SRC)     ; /* times 3 */
+	DST = ((SRC     ) + SRC) &lt;&lt; 1; /* times 4 */
+	DST = ((SRC &lt;&lt; 2) + SRC)     ; /* times 5 */
+	DST = ((SRC &lt;&lt; 1) + SRC) &lt;&lt; 1; /* times 6 */
+	DST = ((SRC     ) + SRC) &lt;&lt; 2; /* times 8 */
+	DST = ((SRC &lt;&lt; 3) + SRC)     ; /* times 9 */
+	DST = ((SRC &lt;&lt; 2) + SRC) &lt;&lt; 1; /* times 10 */
+	DST = ((SRC &lt;&lt; 1) + SRC) &lt;&lt; 2; /* times 12 */
+</PRE>
+<P>
+Multipliers such as 7, 11 and 13 require sequences of two instructions.
+If less powerful shift-and-add instructions are used, we must use multiple
+instructions for some of the above.  For example, we might multiply by
+10 using the following two-instruction sequence:
+<PRE>
+	DST = (SRC &lt;&lt; 2) + SRC; /* times 5 */
+	DST = (DST     ) + DST; /* 5 + 5 = 10 */
+</PRE>
+<P>
+If we are interested in the integer part of a fixed-point product, we must
+use shift-and-add with right-shift operation instead of left-shifting as
+above.  The following examples illustrate multiplications by fixed-point
+fractions with no more than 2 ones in the multiplier:
+<PRE>
+	DST = ((SRC     )      ) &gt;&gt; 3; /* times 1/8 */
+	DST = ((SRC     )      ) &gt;&gt; 2; /* times 1/4 */
+	DST = ((SRC &gt;&gt; 1) + SRC) &gt;&gt; 2; /* times 3/8 */
+	DST = ((SRC     )      ) &gt;&gt; 1; /* times 1/2 */
+	DST = ((SRC &gt;&gt; 2) + SRC) &gt;&gt; 1; /* times 5/8 */
+	DST = ((SRC &gt;&gt; 1) + SRC) &gt;&gt; 1; /* times 3/4 */
+</PRE>
+<P>
+An important property of the shift-and-add instructions that is essential
+to the correctness of the above code is that, for n-bit arguments, the
+sum is n+1 bits, and the extra bit of the sum is shifted into the high
+bit of the result when the result is right shifted.
+<P>
+Multiplication by 7/8 is not included in the above list because this
+fraction, 0.111<SUB>2</SUB> has 3 ones and therefore cannot be done in
+a single instruction.  The missing product can be computed using the
+following 2-instruction sequence:
+<PRE>
+        DST = ((SRC &gt;&gt; 1) + SRC) &gt;&gt; 1; /* times 3/4 */
+        DST = ((DST     ) + SRC) &gt;&gt; 1; /* (3/4 + 1)/2 = 7/8 */
+</PRE>
+<P>
+Readers interested in additional ideas in this area should consult
+Daniel J. Magenheimer, Liz Peters, Karl Pettis, and Dan Zuras.
+"Integer multiplication and division on the HP precision architecture,"
+<I>Proc. Second International Conference on Architectural 
+Support for Programming Language and Operating Systems (ASPLOS-II),</I>
+pages 90-99, October 5-8, 1987.
+
+<H3> Approximate Multiplication by 1/10 </H3>
+<P>
+The above general tools allow us to construct several sequences of
+shift-and-add instructions for multiplying by the 16 bit fixed point binary
+approximation of 1/10, 0.0001100110011001.  The most straightforward of
+these instruction sequences simply handles each bit of the multiplier in
+sequence, from right to left, discarding the least significant bits
+successively with each step in the computation:
+<PRE>
+	unsigned int A;
+	unsigned int Q; /* the quotient */
+
+	Q = ((A &gt;&gt; 3) + A) &gt;&gt; 1; /* Q = A*0.1001 */
+	Q = ((Q     ) + A) &gt;&gt; 3; /* Q = A*0.0011001 */
+	Q = ((Q     ) + A) &gt;&gt; 1; /* Q = A*0.10011001 */
+	Q = ((Q     ) + A) &gt;&gt; 3; /* Q = A*0.00110011001 */
+	Q = ((Q     ) + A) &gt;&gt; 1; /* Q = A*0.100110011001 */
+	Q = ((Q     ) + A) &gt;&gt; 4; /* Q = A*0.0001100110011001 */
+	/* either Q = A/10 or Q+1 = A/10 for all A &lt; 109,230 */
+</PRE>
+<P>
+The result in Q from the above code is exact in 16 bits, in the sense that
+it gives the same result as multiplication by 1999<SUB>16</SUB>!  Several
+other approaches to
+this computation are not exact.  Because this code discards the fractional
+bits of the quotient as soon as possible, it never needs more than 16 bits of
+accumulator for the quotient.  If A and Q are 32 bit quantities, we must
+simply double the number of statements.
+<P>
+This straightforward code, fails to exploit repeating patterns in the
+binary representation of the multiplier!  One way to exploit these
+patterns is to note that 1/10 can be represented as a sum:
+<PRE>
+       2/30  = 0.0001000100010001...    2/(10*3)
+     + 1/30  = 0.0000100010001000...	1/(10*3)
+    ---------------------------------
+     = 1/10  = 0.0001100110011001...
+</PRE>
+<P>
+Furthermore:
+<PRE>
+      16/255 = 0.0001000000010000...
+     + 1/255 = 0.0000000100000001...
+    --------------------------------
+     = 1/15  = 0.0001000100010001...
+</PRE>
+<P>
+We can tentatively exploit this as follows:
+<PRE>
+	Q = ((A &gt;&gt; 8) + A) &gt;&gt; 4; /* Q = A*0.000100000001 */
+	Q = ((Q &gt;&gt; 4) + Q)     ; /* Q = A*0.0001000100010001 */
+	Q = ((Q &gt;&gt; 1) + Q)     ; /* Q = A*0.00011001100110011 */
+	/* either Q = A/10 or Q+1 = A/10 for all A &lt; 30 */
+</PRE>
+<P>
+The result is awful, but the problem is easy to locate!  We discarded too
+many of the less significant digits of the sum too quickly.  If we defer the
+right shifting that represents simple division by a power of 2 to the very end,
+the result is far better:
+<PRE>
+	Q = ((A &gt;&gt; 8) + A) &gt;&gt; 1; /* Q = A*0.100000001 */
+	Q = ((Q &gt;&gt; 4) + Q)     ; /* Q = A*0.1000100010001 */
+	Q = ((Q &gt;&gt; 1) + Q) &gt;&gt; 3; /* Q = A*0.00011001100110011 */
+	/* either Q = A/10 or Q+1 = A/10 for all A &lt; 451,070 */
+</PRE>
+<P>
+But even this code performs its largest right-shift first, so we can
+improve on it by changing the order in which the terms are added, adding
+the largest terms first:
+<PRE>
+	unsigned int A;
+	unsigned int Q; /* the quotient */
+
+	Q = ((A &gt;&gt; 1) + A) &gt;&gt; 1; /* Q = A*0.11 */
+	Q = ((Q &gt;&gt; 4) + Q)     ; /* Q = A*0.110011 */
+	Q = ((Q &gt;&gt; 8) + Q) &gt;&gt; 3; /* Q = A*0.00011001100110011 */
+        /* either Q = A/10 or Q+1 = A/10 for all A &lt; 534,890 */
+</PRE>
+<P>
+This does not compute the exact same quotient as the original code because
+it actually computes the product of A times a fixed point approximation
+of 1/10 that is accurate to 19 places (including trailing zeros) instead of
+the original 16 bit approximation, and this extra precision allows our
+approximation to remain useful for dividends slightly exceeding 2<SUP>19</SUP>.
+<P>
+The final code given above also works in 32 bits with only one additional
+shift and add step:
+<PRE>
+	unsigned long int A;
+	unsigned long int Q; /* the quotient */
+
+	Q = ((A &gt;&gt;  1) + A) &gt;&gt; 1; /* Q = A*0.11 */
+	Q = ((Q &gt;&gt;  4) + Q)     ; /* Q = A*0.110011 */
+	Q = ((Q &gt;&gt;  8) + Q)     ; /* Q = A*0.11001100110011 */
+	Q = ((Q &gt;&gt; 16) + Q) &gt;&gt; 3; /* Q = A*0.000110011001100110011001100110011 */
+        /* either Q = A/10 or Q+1 = A/10 for all 32-bit unsigned A */
+</PRE>
+<P>
+But note:  It is crucial that the carry out of the very first add in the
+above code be shifted into the most significant bit position of the shift
+applied to the result.  Guaranteeing this in a high level language like C is
+very cumbersome, but most machine languages trivially provide for this.
+The final three add operations in the 32 bit version never produce a carry
+out.
+<P>
+The general ideas in this and the following section are closely related
+to the material presented in
+S.-Y. Li, "Fast constant division routines," <I>IEEE Trans. Computers,
+C-34,</I> 866-869 (Sept. 1985).  The primary difference is that Li does
+not guarantee that the successive approximations of the quotient are
+all less than the dividend.  As a result, for arbitrary n-bit dividends,
+Li's schemes frequently require n+1 bits in the accumulator.
+
+<H3> Approximate Multiplication by Other Small Reciprocals </H3>
+<P>
+The approach outlined above works for many other common reciprocals; each of
+the approximations given below works up to the dividend value cited in the
+comments; in each case, the example given is the shortest sequence of
+shift-add-shift steps that has been found adequate for that dividend on a
+16-bit machine:
+<PRE>
+	/* approximate A/5 */
+	Q = ((A &gt;&gt;  1) + A) &gt;&gt; 1; /* Q = A*0.11 */
+	Q = ((Q &gt;&gt;  4) + Q)     ; /* Q = A*0.110011 */
+	Q = ((Q &gt;&gt;  8) + Q) &gt;&gt; 2; /* Q = A*0.0011001100110011 */
+        /* either Q = A/5 or Q+1 = A/5 for all A &lt; 185,365 */
+
+	/* approximate A/6 */
+	Q = ((A &gt;&gt;  2) + A) &gt;&gt; 1; /* Q = A*0.101 */
+	Q = ((Q &gt;&gt;  4) + Q)     ; /* Q = A*0.1010101 */
+	Q = ((Q &gt;&gt;  8) + Q) &gt;&gt; 2; /* Q = A*0.00101010101010101 */
+        /* either Q = A/6 or Q+1 = A/6 for all A &lt; 222,438 */
+
+	/* approximate A/7 */
+	Q = ((A &gt;&gt;  3) + A) &gt;&gt; 1; /* Q = A*0.1001 */
+	Q = ((Q &gt;&gt;  6) + Q)     ; /* Q = A*0.1001001001 */
+	Q = ((Q &gt;&gt; 12) + Q) &gt;&gt; 2; /* Q = A*0.001001001001001001001001 */
+        /* either Q = A/7 or Q+1 = A/7 for all A &lt; 60,577,223 */
+
+	/* approximate A/9 */
+	Q = ((A &gt;&gt;  1) + A) &gt;&gt; 1; /* Q = A*0.11 */
+	Q = ((Q      ) + A) &gt;&gt; 1; /* Q = A*0.111 */
+	Q = ((Q &gt;&gt;  6) + Q)     ; /* Q = A*0.111000111 */
+	Q = ((Q &gt;&gt; 12) + Q) &gt;&gt; 3; /* Q = A*0.000111000111000111000111 */
+        /* either Q = A/9 or Q+1 = A/9 for all A &lt; 115,638,345 */
+
+	/* approximate A/11 */
+	Q = ((A &gt;&gt;  2) + A) &gt;&gt; 1; /* Q = A*0.101 */
+	Q = ((Q      ) + A) &gt;&gt; 1; /* Q = A*0.1101 */
+	Q = ((Q      ) + A) &gt;&gt; 2; /* Q = A*0.011101 */
+	Q = ((Q      ) + A) &gt;&gt; 1; /* Q = A*0.1011101 */
+	Q = ((Q &gt;&gt; 10) + Q) &gt;&gt; 3; /* Q = A*0.00010111010001011101 */
+        /* either Q = A/11 or Q+1 = A/11 for all A &lt; 10,103,819 */
+
+	/* approximate A/13 */
+        Q = ((A &gt;&gt;  1) + A) &gt;&gt; 2; /* Q = A*0.011 */
+        Q = ((Q      ) + A) &gt;&gt; 1; /* Q = A*0.1011 */
+        Q = ((Q      ) + A) &gt;&gt; 1; /* Q = A*0.11011 */
+        Q = ((Q      ) + A) &gt;&gt; 3; /* Q = A*0.00111011 */
+        Q = ((Q      ) + A) &gt;&gt; 1; /* Q = A*0.100111011 */
+        Q = ((Q &gt;&gt; 12) + Q) &gt;&gt; 3; /* Q = A*0.0001001110110001 ... */
+        /* either Q = A/13 or Q+1 = A/13 for all A &lt; 190,894,093 */
+
+	/* approximate A/15 */
+        Q = ((A &gt;&gt;  4) + A) &gt;&gt; 1; /* Q = A*0.10001 */
+        Q = ((Q &gt;&gt;  8) + Q) &gt;&gt; 3; /* Q = A*0.0001000100010001 */
+        /* either Q = A/15 or Q+1 = A/15 for all A &lt; 864,015 */
+</PRE>
+<P>
+Code for approximate division by 10, 12, 14, 18, 22, 26 and 30 can be derived
+from the code for dividing by 5, 6, 7, 9, 11, 13 and 15 by incrementing the
+final shift count by one.  Comparison of the code for division by 5 with the
+code given previously for division by 10 illustrates this.  Similarly, adding
+two to the final shift count gives code for division by 20, 24, 28, 36, 44, 52
+and 60.
+<P>
+It would have been reasonable to expect to be able to divide by 3 using
+a similar pattern, as follows:
+<PRE>
+	/* approximate A/3 */
+	Q = ((A &gt;&gt;  2) + A) &gt;&gt; 1; /* Q = A*0.101 */
+	Q = ((Q &gt;&gt;  4) + Q)     ; /* Q = A*0.1010101 */
+	Q = ((Q &gt;&gt;  8) + Q) &gt;&gt; 1; /* Q = A*0.0101010101010101 */
+        /* either Q = A/3 or Q+1 = A/3 for all A &lt; 12,723 */
+</PRE>
+<P>
+Unfortunately, this does not work correctly for all 16-bit values!  The reason
+is that shifting away the least significant bit in each step discarded too
+much.  If we keep a bit of extra precision, we can solve this problem:
+<PRE>
+	/* approximate A/3 */
+	Q = ((A &gt;&gt;  2) + A)     ; /* Q = A*1.01 */
+	Q = ((Q &gt;&gt;  4) + Q)     ; /* Q = A*1.010101 */
+	Q = ((Q &gt;&gt;  8) + Q) &gt;&gt; 2; /* Q = A*0.0101010101010101 */
+        /* either Q = A/3 or Q+1 = A/3 for all A &lt; 111,219 */
+</PRE>
+<P>
+The problem with this is that the intermediate approximations of the quotient
+will be 4/3 the size of the dividend, so for arbitrary 16-bit dividends, we
+need a 17-bit accumulator.  Lacking this, we can use an extra shift-add-shift
+step at the beginning to construct a larger initial approximation before the
+sequence of shift-add-shift steps that double the precision of this
+approximation.
+<PRE>
+	/* approximate A/3 */
+	Q = ((A &gt;&gt;  2) + A) &gt;&gt; 2; /* Q = A*0.0101 */
+	Q = ((Q      ) + A) &gt;&gt; 1; /* Q = A*0.10101 */
+	Q = ((Q &gt;&gt;  6) + Q)     ; /* Q = A*0.10101010101 */
+	Q = ((Q &gt;&gt; 12) + Q) &gt;&gt; 1; /* Q = A*0.01010101010101010... */
+        /* either Q = A/3 or Q+1 = A/3 for all A &lt; 792,771 */
+</PRE>
+<P>
+This is a good 16-bit solution, but adding a shift-add-shift step to try to
+double the precision does not change the outcome!  What we must do is
+significantly increase the precision of the initial approximation.  For a
+16-bit dividend, we needed a 5-bit initial approximation.  For a 32-bit
+dividend, we need to add an additional 3 shift-add-shift steps to produce
+an 11-bit initial approximation.
+<PRE>
+        /* approximate A/3 */
+        Q = ((A &gt;&gt;  2) + A) &gt;&gt; 2; /* Q = A*0.0101 */
+        Q = ((Q      ) + A) &gt;&gt; 2; /* Q = A*0.010101 */
+        Q = ((Q      ) + A) &gt;&gt; 2; /* Q = A*0.01010101 */
+        Q = ((Q      ) + A) &gt;&gt; 2; /* Q = A*0.0101010101 */
+        Q = ((Q      ) + A) &gt;&gt; 1; /* Q = A*0.10101010101 */
+        Q = ((Q &gt;&gt; 12) + Q)     ; /* Q = A*0.10101010101010101010101 */
+        Q = ((Q &gt;&gt; 24) + Q) &gt;&gt; 1; /* Q = A*0.010101010101001010101010101 ... */
+        /* either Q = A/3 or Q+1 = A/3 for all 32-bit unsigned A */
+</PRE>
+<P>
+As mentioned previously, this code only works if the carry out of the add
+in each shift-add-shift step is shifted into the most significant bit of
+the final shift.  Assuring this in C is difficult!
+<P>
+In contrast to the case for division by 3, the code given above for approximate
+division by larger divisors extends trivially to 32 bits:
+<PRE>
+	/* approximate A/5 */
+	Q = ((A &gt;&gt;  1) + A) &gt;&gt; 1; /* Q = A*0.11 */
+	Q = ((Q &gt;&gt;  4) + Q)     ; /* Q = A*0.110011 */
+	Q = ((Q &gt;&gt;  8) + Q)     ; /* Q = A*0.11001100110011 */
+	Q = ((Q &gt;&gt; 16) + Q) &gt;&gt; 2; /* Q = A*0.001100110011001100110011001... */
+        /* either Q = A/5 or Q+1 = A/5 for all 32-bit unsigned A */
+
+	/* approximate A/6 */
+	Q = ((A &gt;&gt;  2) + A) &gt;&gt; 1; /* Q = A*0.101 */
+	Q = ((Q &gt;&gt;  4) + Q)     ; /* Q = A*0.1010101 */
+	Q = ((Q &gt;&gt;  8) + Q)     ; /* Q = A*0.101010101010101 */
+	Q = ((Q &gt;&gt; 16) + Q) &gt;&gt; 2; /* Q = A*0.001010101010101010101010101... */
+        /* either Q = A/6 or Q+1 = A/6 for all 32-bit unsigned A */
+
+	/* approximate A/7 */
+	Q = ((A &gt;&gt;  3) + A) &gt;&gt; 1; /* Q = A*0.1001 */
+	Q = ((Q &gt;&gt;  6) + Q)     ; /* Q = A*0.1001001001 */
+	Q = ((Q &gt;&gt; 12) + Q)     ; /* Q = A*0.1001001001001001001001 */
+	Q = ((Q &gt;&gt; 24) + Q) &gt;&gt; 2; /* Q = A*0.001001001001001001001001001... */
+        /* either Q = A/7 or Q+1 = A/7 for all 32-bit unsigned A */
+
+	/* approximate A/9 */
+	Q = ((A &gt;&gt;  1) + A) &gt;&gt; 1; /* Q = A*0.11 */
+	Q = ((Q      ) + A) &gt;&gt; 1; /* Q = A*0.111 */
+	Q = ((Q &gt;&gt;  6) + Q)     ; /* Q = A*0.111000111 */
+	Q = ((Q &gt;&gt; 12) + Q)     ; /* Q = A*0.111000111000111000111 */
+	Q = ((Q &gt;&gt; 12) + Q) &gt;&gt; 3; /* Q = A*0.000111000111000111000111000... */
+        /* either Q = A/9 or Q+1 = A/9 for all 32-bit unsigned A */
+
+	/* approximate A/11 */
+	Q = ((A &gt;&gt;  2) + A) &gt;&gt; 1; /* Q = A*0.101 */
+	Q = ((Q      ) + A) &gt;&gt; 1; /* Q = A*0.1101 */
+	Q = ((Q      ) + A) &gt;&gt; 2; /* Q = A*0.011101 */
+	Q = ((Q      ) + A) &gt;&gt; 1; /* Q = A*0.1011101 */
+	Q = ((Q &gt;&gt; 10) + Q)     ; /* Q = A*0.10111010001011101 */
+	Q = ((Q &gt;&gt; 20) + Q) &gt;&gt; 3; /* Q = A*0.000101110100010111010001011... */
+        /* either Q = A/11 or Q+1 = A/11 for all 32-bit unsigned A */
+</PRE>
+
+<H3> Fixing the Approximation </H3>
+<P>
+We can, of course, fix the results of this code by computing the remainder
+and then forcing it in bounds.  The following code illustrates this for
+division by 10 and is easily generalized to other divisors:
+<PRE>
+        unsigned int A;
+        unsigned int Q; /* the quotient */
+	unsigned int R; /* the remainder */
+
+	Q = ((A &gt;&gt; 1) + A) &gt;&gt; 1; /* Q = A*0.11 */
+	Q = ((Q &gt;&gt; 4) + Q)     ; /* Q = A*0.110011 */
+	Q = ((Q &gt;&gt; 8) + Q) &gt;&gt; 3; /* Q = A*0.00011001100110011 */
+        /* either Q = A/10 or Q+1 = A/10 for all A &lt; 534,890 */
+
+	R = ((Q &lt;&lt; 2) + Q) &lt;&lt; 1;
+	R = A - R; /* R = A - 10*Q */
+	if (R &gt;= 10) {
+		R = R - 10;
+		Q = Q + 1;
+	}
+        /* Q = A/10 for all A &lt; 534,890 */
+</PRE>
+<P>
+It may be reasonable to code directly from this skeleton on a small
+microcontroller, but on a modern pipelined RISC machine, it is better to
+avoid the conditional branches implicit in the if statement given above.
+<P>
+Several modern RISC machines and also many microcontrollers have either
+conditional skip or conditional store instructions; these test the results
+of an arithmetic instructions and either force the next instruction to
+be skipped if some condition is met or only store the result if some condition
+is met.  Such instructions have the property that the code runs at exactly
+the same speed whether or not the condition is met, and there are no
+branch penalties.  Coding with such instructions in mind, we get
+the following code:
+<PRE>
+        unsigned int A;
+        unsigned int Q; /* the quotient */
+        unsigned int R; /* the remainder */
+        unsigned int T; /* temporary */
+
+	Q = ((A &gt;&gt; 1) + A) &gt;&gt; 1; /* Q = A*0.11 */
+	Q = ((Q &gt;&gt; 4) + Q)     ; /* Q = A*0.110011 */
+	Q = ((Q &gt;&gt; 8) + Q) &gt;&gt; 3; /* Q = A*0.00011001100110011 */
+        /* either Q = A/10 or Q+1 = A/10 for all A &lt; 534,890 */
+
+	R = ((Q &lt;&lt; 2) + Q) &lt;&lt; 1;
+	R = A - R;
+	T = R - 10;
+	if (T &gt; 0) Q = Q + 1;
+	if (T &gt; 0) R = T;
+        /* Q = A/10 for all A &lt; 534,890 */
+</PRE>
+<P>
+In the above, we have introduced a temporary variable, T, to eliminate
+the redundant computations implied by the comparison and subtraction
+code in the original if statement.  A good compiler may be able to
+perform this optimization automatically.
+<P>
+If we translated the above code to machine code on a RISC machine with
+general add-shift-and-skip instructions, we can compute our approximate
+quotient after the 3rd instruction, the approximate remainder after
+the 5th, and the corrected quotient after the 7th.  On such a machine,
+no more than 2 extra instructions are needed to compute the corrected
+remainder, so we can get A/10 and A mod 10 in 9 instructions of
+straight-line code.
+
+<H3> Using Extra Precision </H3>
+<P>
+As noted, it takes an extra bit of precision to produce an exact quotient
+using reciprocal multiplication.  For a 16-bit product, we need a 17 bit
+rounded fixed-point multiplier.  For division by 10, for example, we
+multiply by 0x1999A or 0.00011001100110011010<SUB>2</SUB>.  Rounding has
+destroyed the clean repeating pattern of our truncated multiplier,
+but if we ignore what we learned above about efficient ways to compute
+the repeating fraction, we can use brute force to arrive at an exact
+quotient as follows:
+<PRE>
+	unsigned int A;
+	unsigned int Q; /* the quotient */
+
+	Q = ((A &gt;&gt; 2) + A) &gt;&gt; 1; /* Q = A*0.101 */
+	Q = ((Q     ) + A) &gt;&gt; 3; /* Q = A*0.001101 */
+	Q = ((Q     ) + A) &gt;&gt; 1; /* Q = A*0.1001101 */
+	Q = ((Q     ) + A) &gt;&gt; 3; /* Q = A*0.0011001101 */
+	Q = ((Q     ) + A) &gt;&gt; 1; /* Q = A*0.10011001101 */
+	Q = ((Q     ) + A) &gt;&gt; 3; /* Q = A*0.00110011001101 */
+	Q = ((Q     ) + A) &gt;&gt; 1; /* Q = A*0.100110011001101 */
+	Q = ((Q     ) + A) &gt;&gt; 4; /* Q = A*0.0001100110011001101 */
+        /* Q = A/10 for all A &lt; 81,920 */
+</PRE>
+<P>
+Here, we arrived at an exact 16 bit quotient using 8 generalized
+shift-and-add instructions, only one instruction more than our estimated
+instruction count for the more clever approximate-and-correct code given
+above!  On a 16-bit machine, for most small divisors, this exact method is
+generally comparable in cost to approximate division followed by a fixup
+step.
+<P>
+For larger word sizes, the the approximate-and-correct methods
+generally outperform this exact code.  This is because the total number of
+shift-add-shift steps required for the exact method is generally proportional
+to the word size.  In contrast, with the approximate methods given here,
+each additional instruction typically doubles the precision.
+The following code, for example, gives A/10 exact to 32 bits:
+<PRE>
+	Q = ((A &gt;&gt; 2) + A) &gt;&gt; 1; /* Q = A*0.101 */
+	Q = ((Q     ) + A) &gt;&gt; 3; /* Q = A*0.001101 */
+	Q = ((Q     ) + A) &gt;&gt; 1; /* Q = A*0.1001101 */
+	Q = ((Q     ) + A) &gt;&gt; 3; /* Q = A*0.0011001101 */
+	Q = ((Q     ) + A) &gt;&gt; 1; /* Q = A*0.10011001101 */
+	Q = ((Q     ) + A) &gt;&gt; 3; /* Q = A*0.00110011001101 */
+	Q = ((Q     ) + A) &gt;&gt; 1; /* Q = A*0.100110011001101 */
+	Q = ((Q     ) + A) &gt;&gt; 3; /* Q = A*0.001100110011001101 */
+	Q = ((Q     ) + A) &gt;&gt; 1; /* Q = A*0.1001100110011001101 */
+	Q = ((Q     ) + A) &gt;&gt; 3; /* Q = A*0.0011001100110011001101 */
+	Q = ((Q     ) + A) &gt;&gt; 1; /* Q = A*0.10011001100110011001101 */
+	Q = ((Q     ) + A) &gt;&gt; 3; /* Q = A*0.00110011001100110011001101 */
+	Q = ((Q     ) + A) &gt;&gt; 1; /* Q = A*0.100110011001100110011001101 */
+	Q = ((Q     ) + A) &gt;&gt; 3; /* Q = A*0.001100110011001100110011001101 */
+	Q = ((Q     ) + A) &gt;&gt; 1; /* Q = A*0.1001100110011001100110011001101 */
+	Q = ((Q     ) + A) &gt;&gt; 4; /* Q = A*0.00011001100110011001100110011001101 */
+	/* Q = A/10 for all 32-bit unsigned A */
+</PRE>
+<P>
+If the approximate reciprocal has sufficiently few one bits, however,
+the exact method will outperform the inexact method.  For our small
+divisors, the case of 15 provides a clear example of this:
+<PRE>
+	Q = ((A &gt;&gt; 3) + A) &gt;&gt; 4; /* Q = A*0.0001001 */
+	Q = ((Q     ) + A) &gt;&gt; 4; /* Q = A*0.00010001001 */
+	Q = ((Q     ) + A) &gt;&gt; 4; /* Q = A*0.000100010001001 */
+	Q = ((Q     ) + A) &gt;&gt; 4; /* Q = A*0.0001000100010001001 */
+	/* Q = A/15 for all A &lt; 74,909 */
+</PRE>
+<P>
+These four generalized shift-add-shift instructions for exact 16-bit
+division by 15 clearly win over our approximate-and-correct method,
+and extension to a 32-bit dividend remains competitive.  Only when operand
+sizes approach 64 bits does approximation followed by correction become
+a clear winner.
+<P>
+Another case where the exact methods generally win is when the repeating
+pattern used in the approximation is long and irregular, as it is for division
+by 11 and 13.  For these cases, the code to compute the irregular pattern
+dominated the approximation for the 16-bit case.  The approximate-and-correct
+method still wins for these divisors in 32 bits.
+
+<HR>
+
+<H2> <A NAME=signed> Signed Dividends </A> </H2>
+<P>
+In all of the above discussion, the focus has been on unsigned integers.
+Division by negative divisors is relatively trivial.  First divide by
+the positive number, then negate both the remainder and quotient.  Division
+of signed dividends, however, poses more interesting problems.
+<P>
+The classic approach to division of a potentially negative number is to
+record the sign, take the absolute value, and then restore the sign, as
+follows:
+<PRE>
+	int A;
+	int Q; /* the quotient */
+
+	{
+		int S = A &lt; 0;
+		unsigned int AA = A;
+		if (S) AA = -AA;	/* AA = abs(A) */
+
+		Q = AA / D;		/* divide */
+
+		if (S) Q = -Q;		/* restore sign */
+	}
+</PRE>
+<P>
+This logic satisfies the vast majority of programmers, and in fact,
+this is how division of a negative number by a positive dividend is
+defined in FORTRAN.  Unfortunately, it may be wrong!
+<P>
+The problem with the above algorithm is clear when we examine the
+following incompatible requirements for integer division:
+<OL>
+<LI> &nbsp;	(-A) / D = -(A / D)
+<LI> &nbsp;	D(A / D) + (A mod D) = A
+<LI> &nbsp;	0 <EM CLASS=U>&lt;</EM> (A mod D) &lt; D
+</OL>
+At a quick glance, these appear to be obvious and true, but for
+cases where A is negative and the remainder (A mod D) is nonzero,
+it is not possible for all three to hold.  The code framework given
+above is based on rule 1, and if we define the mod operator as in
+rule 2, the consequence is that nonzero remainders will have their
+sign determined by the dividend and therefore, rule 3 will be violated.
+<P>
+Another way of describing the effect is to say that the code outlined
+above truncates non-integer results towards zero.  The effect is to round
+the absolute value of the quotient down, and then restore the sign.
+<P>
+When we divide by a power of two using a sign-preserving right-shift
+operator, the result is different.  In that case, non-integer results are
+truncated to the next more negative integer, so that truncation
+actually increases the value of negative quotients.  This preserves
+rules 2 and 3 above, while allowing rule 1 to be violated.
+<P>
+Which approach is right?  This is not the right question.  For some
+applications, one approach may be preferred, while for others, the
+other approach is likely to be better.
+<P>
+If the shift and add approach to reciprocal multiplication given in
+the final section above is applied to signed dividends, the result
+is the correct quotient, adhering to rules 2 and 3 above.  Thus, for
+a 16-bit divide by 10, the following code works:
+<PRE>
+        int A;
+        int Q; /* the quotient */
+	int R; /* the remainder */
+
+	Q = ((A &gt;&gt; 1) + A) &gt;&gt; 1; /* Q = A*0.11 */
+	Q = ((Q &gt;&gt; 4) + Q)     ; /* Q = A*0.110011 */
+	Q = ((Q &gt;&gt; 8) + Q) &gt;&gt; 3; /* Q = A*0.00011001100110011 */
+        /* either Q = A/10 or Q+1 = A/10 for -87,381 &lt; A &lt; 534,890 */
+
+	R = ((Q &lt;&lt; 2) + Q) &lt;&lt; 1;
+	R = A - R; /* R = A - 10*Q */
+	if (R &gt;= 10) {
+		R = R - 10;
+		Q = Q + 1;
+	}
+        /* Q = A/10 for -87,381 &lt; A &lt; 534,890 */
+</PRE>
+<P>
+This code assumes that right-shift operators applied to signed operands
+sign-extend the shifted operand, and it assumes that the very first
+shift-add-shift
+sequence correctly accounts for the carry and overflow conditions from the
+add step as it performs the second shift, so that the result after the shift
+is as if no data was lost to an overflow in the add step.
+With properly designed hardware, this is straightforward, but not all
+computers offer good support in this area.
+<P>
+Notice that the range of values for which this works is not symmetrical!
+Nonetheless, it is sufficient for all 16-bit signed divisors.  This asymmetry
+also shows up in the case of simple reciprocal multiplication.  Thus, where
+multiplication by 0.1999<SUB>16</SUB> produced an adequate approximation
+of the quotient for 16-bit unsigned dividends, we must multiply
+by 0.19998<SUB>16</SUB> to correctly approximate the quotient when dealing
+with 16-bit signed dividends.
+<PRE>
+	int tenth_trunc = 0x3333; /* 17 bits right of the point */
+
+	Q = (A * tenth_trunc) &gt;&gt; 17;
+        /* either Q = A/10 or Q+1 = A/10 for -65,541 &lt; A &lt; 163,843 */
+</PRE>
+<P>
+As noted previously, the above code gives the correct result under
+rules 2 and 3 given above for defining integer division.
+If the FORTRAN version, adhering to rule 1 is desired, a fixup step can
+be added:
+<PRE>
+	if ((Q &lt; 0) &amp;&amp; (R != 0)) {
+		R = R - 10;
+		Q = Q + 1;
+	}
+</PRE>
+<P>
+Extension of these methods to 32 bits for signed dividends is straightforward,
+but only the approximate division methods given for unsigned dividends can
+be applied.  The divisors that gave exact results for unsigned dividends
+do not give exact results for negative dividends!
+<HR>
+
+<H2> <A NAME=testing> Exhaustive Testing </A> </H2>
+<P>
+It is easy to forget how fast modern machines are!  Exhaustive testing of
+algorithms for 16 bit arithmetic is not only practical but fast, and given
+the difficulty of mathematical proof, it is worthwhile.  All of the unsigned
+shift and add code given above has been tested using the following skeleton,
+written in C:
+<PRE>
+#include &lt;stdio.h&gt;
+main()
+{
+        unsigned long int A = 0;
+        for (;;) {
+                unsigned long int Q;
+                unsigned long int R;
+
+                /* substitute appropriate code here */
+
+                if ((A/10) != Q) break;
+		A++;
+		if (A == 0) break;
+        }
+        printf( "terminates with A = %lu\n", A );
+        exit();
+}
+</PRE>
+<P>
+This code runs to completion in under a second for 16-bit divide routines
+on an antique IBM RT workstation that, coincidentally, has no integer
+multiply or divide hardware.
+On a modern fast machine such as the Power PC G4, exhaustive testing on
+32 bit code, or exhaustive tests of 2-argument 16 arithmetic operations
+is entirely within reason; exhaustive testing of the 32-bit code given
+above took well under an hour, even with the awkward code required to
+preserve the carry out in the initial shift-add-shift operations.
+<P>
+
+<HR>
+
+</BODY>
+</HTML>
