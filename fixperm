@@ -1,0 +1,13 @@
+#!/bin/bash
+if [ -z "${1}" ]; then
+	echo "usage ${0} directories/files";
+	exit 1;
+fi;
+
+for i in "${@}" 
+do
+	echo "Changing permissions of: ${i}"
+	find "${i}" -type d -exec chmod 700 '{}' \;
+	find "${i}" -type f -exec chmod 600 '{}' \;
+done
+
