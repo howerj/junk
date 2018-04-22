@@ -1,0 +1,21 @@
+#!/bin/sh
+# https://gist.github.com/todgru/6224848
+
+session="0"
+
+tmux start-server
+tmux new-session -d -s $session
+
+tmux new-window -t $session:1 
+tmux send-keys "mutt" C-m 
+
+tmux new-window -t $session:2
+tmux send-keys "mocp" C-m 
+
+tmux new-window -t $session:3 
+tmux send-keys "newsbeuter" C-m 
+
+tmux select-window -t $session:0
+# tmux send-keys "su" C-m 
+
+tmux attach-session -t $session
