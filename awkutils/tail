@@ -1,0 +1,12 @@
+#!/usr/bin/awk -f
+
+BEGIN { max = 10 }
+{ all[i++] = $0; i = i % max; m++ }
+
+END {
+	j = i;
+	for(k = 0; k < max && k < m; k++) {
+		printf "%s\n", all[j];
+		j = (j + 1) % max
+	}	
+}
