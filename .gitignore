@@ -1,1 +1,8 @@
 *.o
+*.a
+*.so
+*~
+*.out
+*.log
+emu
+mips
