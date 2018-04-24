@@ -12,7 +12,6 @@ static uint8_t rle_to_lzss[8192];
 
 int main(int argc, char **argv)
 {
-#if 0
 	/* form a pipe: Input -> RLE -> LZSS -> output */
 	io_t *output = io_file(stdout);
 
@@ -35,10 +34,8 @@ int main(int argc, char **argv)
 		rle_chars_output = io_get_chars_written(rle_out);
 		assert(rle_chars_output < sizeof(rle_to_lzss));
 
+		fprintf(stderr, "rle read:  %zu\n", io_get_chars_read(rle_in));
 		fprintf(stderr, "rle write: %zu\n", rle_chars_output);
-
-		io_free(rle_in);
-		io_free(rle_out);
 
 		lzss_in = io_string_external(IO_READ, rle_chars_output, rle_to_lzss);
 
@@ -48,10 +45,11 @@ int main(int argc, char **argv)
 		}
 		fprintf(stderr, "lzss (total) write: %zu\n", io_get_chars_written(output));
 
+		io_free(rle_in);
+		io_free(rle_out);
 		io_free(lzss_in);
 	}
 
 	return 0;
-#endif
 }
 
