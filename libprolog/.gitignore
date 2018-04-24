@@ -1,0 +1,9 @@
+*.o
+*.a
+*.so
+*~
+*.log
+*.htm
+*.html
+prolog
+a.out
