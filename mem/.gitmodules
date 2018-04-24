@@ -1,0 +1,6 @@
+[submodule "mpc"]
+	path = mpc
+	url = https://github.com/orangeduck/mpc
+[submodule "libline"]
+	path = libline
+	url = https://github.com/howerj/libline
