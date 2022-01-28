@@ -1,0 +1,153 @@
+/* from docutils */
+.literal-block, pre.literal-block, pre.doctest-block, pre.math {
+  /* background-color: #ccffdd ; */
+  background-color: #ccffdd;
+  margin-left: 2em ;
+  margin-right: 2em;
+  padding: 0.5em 1em 0.5em 1em;
+}
+
+
+/* latest */
+
+/*h1 {  font-size: 150%; background-color: #e8e8ff;}*/
+h1 { font-size: 200%;}
+h2 {  font-size: 140%; background-color: #e8e8ff;}
+/* body { background-color: #8080ff;} */
+
+div.document {
+    margin-left: 50px;
+    max-width: 950px;
+    /* border: solid red 3px;*/ 
+    }
+
+.shift-up-10 { margin-top: -10px; }
+.shift-up-20 { margin-top: -20px; }
+.shift-up-30 { margin-top: -30px; }
+.shift-up-40 { margin-top: -40px; }
+
+.shift-down-10 { margin-top:  10px; }
+.shift-down-20 { margin-top:  20px; }
+.shift-down-30 { margin-top:  30px; }
+.shift-down-40 { margin-top:  40px; }
+
+.shift-right-40 { margin-left:  40px; }
+
+.ind5p { margin-left: 5%;}
+.ind10p { margin-left: 10%;}
+.ind15p { margin-left: 15%;}
+.ind20p { margin-left: 20%;}
+.ind25p { margin-left: 25%;}
+.ind30p { margin-left: 30%;}
+.ind35p { margin-left: 35%;}
+
+.w95p { width: 95%;}
+.w90p { width: 90%;}
+.w85p { width: 85%;}
+.w80p { width: 80%;}
+.w70p { width: 70%;}
+.w65p { width: 65%;}
+.w55p { width: 55%;}
+.w50p { width: 50%;}
+.w45p { width: 45%;}
+.w40p { width: 40%;}
+.w35p { width: 35%;}
+.w33p { width: 33%;}
+.w30p { width: 30%;}
+.w25p { width: 25%;}
+.w20p { width: 20%;}
+.w15p { width: 15%;}
+.w10p { width: 10%;}
+
+
+/* for layout on the dynamic-page 
+   note, it is assumed that the page
+   width is 950 px */
+
+/* for text that need to stick the the floor */
+div.pf-row-floor {
+    clear: both;
+    display: flex;
+    align-items: flex-end;
+    width: 100%;
+/*    border: solid blue 3px;  */
+}
+
+/* for text that need to stick the the ceiling */
+div.pf-row-ceiling {
+    clear: both;
+    display: flex;
+    align-items: flex-start;
+    width: 100%;
+   /* border: solid blue 3px; */
+}
+
+/* for figures that need to stick the the floor */
+div.pf-figrow-floor {
+    clear: both;
+    display: flex;
+    align-items: flex-end;
+    text-align: center;
+    width: 100%;
+/*    border: solid blue 3px;  */
+}
+
+/* for figures that need to stick to the ceiling */
+div.pf-figrow-ceiling {
+    clear: both;
+    display: flex;
+    align-items: flex-start;
+    text-align: center;
+    width: 100%;
+   /* border: solid blue 3px; */
+}
+
+/* left-aligned text data cell */
+div.pf-td{
+    display: inline-block;
+    width: 50%;
+    padding-left: 1em;
+    padding-right: 1em;
+/*    border: solid red 2px; */
+}
+
+
+/* center-aligned figure data cell */
+div.pf-tdf{
+   display: inline-block;
+   width: 50%;
+   margin: 0 auto;
+/*   border: solid red 1px; */
+}
+
+
+/* center-aligned figure data cell */
+
+
+/* text alignment */
+.text-center { text-align: center;}
+
+/* colors */
+.white    { color: white;}
+
+
+.light-yellow-background { background: #fdfdda; }
+.light-blue-background   { background: #d0d0ff; }
+.lighter-blue-background { background: #d8d8ff; }
+.lighter-blue-txt { color: #d8d8ff; }
+
+/* offsets */
+.intro-txt{
+    padding: 3px 20px 10px 20px;
+    background: #fdfdda;
+}
+
+/* for the tiles page */
+table.tiles td {
+    padding-left: 0.5em ;
+    padding-right: 0.5em ;
+    vertical-align: top;
+    background-color: #f0f0ff;}
+
+
+
